@@ -5,6 +5,8 @@ import { COLORS, DEFAULT_MAX_PARTY_SIZE, MIN_PARTY_SIZE } from '../../shared/pro
 import { diagnosticBreadcrumb, reportClientError, setDiagnosticContext } from './diagnostics';
 
 const CREDENTIAL_KEY = 'catpark.credentials.v1';
+/** Set once the player has dismissed or completed the username prompt for this account. */
+const USERNAME_PROMPT_KEY = 'catpark.username-prompt.v1';
 export class ApiError extends Error { constructor(message: string, public status: number) { super(message); } }
 export async function api<T>(path: string, body?: unknown, token?: string, method = 'POST'): Promise<T> {
   const started = performance.now();
@@ -30,6 +32,8 @@ export function usePark() {
   const [grant, setGrant] = useState<VoiceGrant | null>(null);
   const [notice, setNotice] = useState('');
   const [authError, setAuthError] = useState('');
+  const [username, setUsernameState] = useState<string | null>(null);
+  const [usernamePrompt, setUsernamePrompt] = useState(false);
   const [config, setConfig] = useState<ParkConfig>({ characters: [], colors: COLORS, minPartySize: MIN_PARTY_SIZE, maxPartySize: DEFAULT_MAX_PARTY_SIZE, voiceAvailable: false });
   const [connectionAttempt, setConnectionAttempt] = useState(0);
   const room = useRef<Room | null>(null);
@@ -42,10 +46,14 @@ export function usePark() {
       setCredentials(next);
       try { localStorage.setItem(CREDENTIAL_KEY, JSON.stringify(next)); } catch { setNotice('浏览器未允许保存账号，请在设置中记下 ID 和密码，以免丢失。'); }
     }
-    setAuth(result); setAuthError(''); setStatus('connecting');
+    setAuth(result); setAuthError(''); setStatus('connecting'); setUsernameState(result.username);
+    let dismissed: string | null = null;
+    try { dismissed = localStorage.getItem(USERNAME_PROMPT_KEY); } catch { /* Prompt again when storage is unavailable. */ }
+    setUsernamePrompt(!result.username && dismissed !== result.profile.id);
   }, []);
   const login = useCallback(async (saved: Credentials) => {
-    const result = await api<AuthResult>('/api/account/login', saved); acceptAuth(result, saved);
+    // The login field also accepts a username; the browser always keeps the stable user ID.
+    const result = await api<AuthResult>('/api/account/login', saved); acceptAuth(result, { userId: result.profile.id, password: saved.password });
   }, [acceptAuth]);
   const createGuest = useCallback(async () => {
     const result = await api<AuthResult>('/api/account/guest'); acceptAuth(result);
@@ -116,5 +124,14 @@ export function usePark() {
     const result = await api<AuthResult>('/api/account/password', { currentPassword, newPassword }, auth?.token);
     acceptAuth(result, { userId: result.profile.id, password: newPassword });
   }, [auth?.token, acceptAuth]);
-  return { auth, credentials, status, social, world, grant, notice, authError, config, send, login, createGuest, updateProfile, changePassword, setNotice, clearNotice: () => setNotice(''), reconnect: () => setConnectionAttempt(n => n + 1) };
+  const setUsername = useCallback(async (value: string) => {
+    const result = await api<{ username: string }>('/api/account/username', { username: value }, auth?.token, 'PUT');
+    setUsernameState(result.username);
+    return result.username;
+  }, [auth?.token]);
+  const dismissUsernamePrompt = useCallback(() => {
+    setUsernamePrompt(false);
+    try { if (auth) localStorage.setItem(USERNAME_PROMPT_KEY, auth.profile.id); } catch { /* Only this session hides the prompt. */ }
+  }, [auth?.profile.id]);
+  return { auth, credentials, username, setUsername, usernamePrompt, dismissUsernamePrompt, status, social, world, grant, notice, authError, config, send, login, createGuest, updateProfile, changePassword, setNotice, clearNotice: () => setNotice(''), reconnect: () => setConnectionAttempt(n => n + 1) };
 }

@@ -34,7 +34,10 @@ export const configSchema = z.strictObject({
     maxPartySize: z.int().min(2).max(12).default(6),
     maxPlayers: z.int().min(2).max(500).default(100),
     reconnectSeconds: z.number().min(0.1).max(120).default(30),
-  }).default({ maxPartySize: 6, maxPlayers: 100, reconnectSeconds: 30 }),
+    // Offline cats stay greyed out in the lobby for this long, newest first up to the limit.
+    offlineHours: z.number().min(0).max(720).default(24),
+    offlineLimit: z.int().min(0).max(200).default(30),
+  }).default({ maxPartySize: 6, maxPlayers: 100, reconnectSeconds: 30, offlineHours: 24, offlineLimit: 30 }),
   // Private local asset package directory, resolved from the project root.
   assets: z.strictObject({ package: z.string().min(1) }).optional(),
   voice: voiceSchema.optional(),

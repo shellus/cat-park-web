@@ -6,6 +6,14 @@
 
 至少两人且全员准备才可开局。入队开启自动准备意图，但只有麦克风采集到有效输入、语音连接与发布成功后才实际准备。手动取消设置 `autoReady=false`，后续检测、重连或重新加入队伍不自动将其改回；手动点击准备才表达新的准备意图。该偏好按账号保存。设备故障撤销实际准备，不抹去用户的取消偏好。
 
+不开麦准备是用户显式确认的 `party.ready {ready:true, withoutMic:true}`：服务端记录 `micless`，开局跳过该成员的语音校验，其余成员仍逐一校验。麦克风上报变化和断线重连不清除该意图，离开或切换队伍、手动取消准备会清除；麦克风检查通过后以普通准备呈现。LiveKit 不可用时同样可以不开麦准备。
+
+## 账号与离线展示
+
+账号主键仍是 UUID。用户名为可选唯一别名（3–20 位字母、数字、`_`、`-`，不区分大小写），登录接口的 `userId` 字段同时接受 UUID 与用户名；浏览器始终保存 UUID。首次进入的用户名提示可关闭，按账号记在浏览器。
+
+在线玩家断线后在重连窗口内保持原状并显示离线时长；窗口过期后记录其大厅坐标与离线时间，大厅以变灰、无碰撞的形式绘制最近 `game.offlineHours` 小时内最多 `game.offlineLimit` 只离线小猫，服务关闭时在线玩家也会记录。多只离线小猫重叠时只标注最近一只。
+
 ## 并行接口
 
 - `shared/world.ts` 的 `createWorld` 是服务器与浏览器共用的模拟实现；`shared/simulation.ts` 导出服务器入口 `createSimulation(kind: WorldKind): Promise<GameSimulation>`，读取 `public/game/content.json`。实例提供 `addPlayer(profile)`、`removePlayer(id)`、`updateProfile(profile)`、`setInput(id,input)`、`step(dt)`、`snapshot()`、`dispose()`。一个实例只管理一个大厅或一场挑战。

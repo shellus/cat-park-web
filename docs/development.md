@@ -41,9 +41,9 @@ npm start
 
 ## 配置与数据
 
-配置采用 `config.yaml`，样例为项目根 `config.example.yaml`。账号与会话保存在 SQLite 中，浏览器保存用户 ID 和密码以便自动恢复。删除浏览器数据后需要原 ID/密码才能回到原账号。
+配置采用 `config.yaml`，样例为项目根 `config.example.yaml`。账号与会话保存在 SQLite 中，浏览器保存用户 ID 和密码以便自动恢复。删除浏览器数据后需要用户名或原 ID 加密码才能回到原账号。账号表在启动时自动补充新增列，无需手动迁移。
 
-LiveKit 未配置或无法连接时，用户仍可进大厅、聊天和组队，但不能准备与开局。不得将开发模式当作跳过麦克风要求的理由。
+LiveKit 未配置或无法连接时，用户仍可进大厅、聊天和组队，但只能经确认后不开麦准备。不得将开发模式当作跳过麦克风要求的理由。
 
 默认队伍上限为六人，可在配置中调整；这是初版产品假设。开局最少两人，全员通过语音检测并准备。取消准备意图按账号保存，之后需主动准备。
 
@@ -60,7 +60,7 @@ npm run prod
 
 生产运行需要独立保证 LiveKit 可达。常驻物理模拟、SQLite 和 WebRTC 媒体服务采用自托管模型；前端可作为普通静态产物分发，但当前不引入 Cloudflare 运行时依赖。
 
-浏览器联调使用 Playwright 与独立浏览器上下文；测试媒体设备产生的音频仅用于验证采集、发布和状态流转，不能当成手机真实麦克风/蓝牙耳机的验收。
+浏览器联调使用 Playwright 与独立浏览器上下文；环境变量 `PLAYWRIGHT_BASE_URL` 可指向独立测试实例，避免测试账号进入实际使用的数据库；测试媒体设备产生的音频仅用于验证采集、发布和状态流转，不能当成手机真实麦克风/蓝牙耳机的验收。
 
 Linux 开发可用 `./tmux-dev-manager.sh start|stop|restart|status|attach|health` 管理 `cat-park-dev` 会话。Windows 可直接使用终端 `npm start`，停止时结束该命令；需要常驻时执行 `powershell -ExecutionPolicy Bypass -File scripts/windows-supervisor.ps1 -Register` 注册当前用户登录后自动启动的计划任务 `CatParkWeb`，进程退出后自动重启，输出写入 `.runtime/start.*.log`。`Stop-ScheduledTask CatParkWeb` 只停止监管进程，需同时结束其启动的 node 与 LiveKit；`-Unregister` 移除任务。
 

@@ -1,15 +1,28 @@
-import { Application, Assets, Container, Graphics, Matrix, NineSliceSprite, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
-import type { ActorSnapshot, InputState, WorldSnapshot } from '../../shared/protocol.ts';
+import { Application, Assets, ColorMatrixFilter, Container, Graphics, Matrix, NineSliceSprite, Rectangle, Sprite, Text, Texture, TilingSprite } from 'pixi.js';
+import type { ActorSnapshot, InputState, OfflinePlayer, WorldSnapshot } from '../../shared/protocol.ts';
 import type { GameCharacter, GameContent, GameSprite, GameVisual } from '../../shared/game-content.ts';
 import { GAME_RULES as R } from '../../shared/game-behavior.ts';
 import { LocalPlayer, RemotePlayers, type InputSample, type Pose } from './prediction.ts';
 import { reportClientError } from '../client/diagnostics';
 
 interface ActorView {
-  container: Container; layers: Map<string, Sprite>; label: Text; marker: Graphics;
+  container: Container; layers: Map<string, Sprite>; label: Text; note: Text; marker: Graphics;
   character: GameCharacter; animation: string; animationTime: number; x: number; y: number;
 }
-interface RenderState { world: WorldSnapshot | null; selfId: string; readInput: () => InputSample; sendInput: (input: InputState) => void }
+/** Written by the renderer every frame so pointer input can map screen points to the world. */
+export interface RenderView { cameraX: number; cameraY: number; zoom: number; width: number; height: number; self?: { x: number; y: number }; target?: { x: number; y: number } | null }
+interface RenderState {
+  world: WorldSnapshot | null; selfId: string; readInput: () => InputSample; sendInput: (input: InputState) => void;
+  /** Offline players: last-seen time for everyone offline, and cats left standing in the lobby. */
+  lastSeen: Map<string, number>; offline: OfflinePlayer[]; view: RenderView;
+}
+export function lastSeenText(at: number, now = Date.now()) {
+  const minutes = Math.max(0, Math.floor((now - at) / 60_000));
+  if (minutes < 1) return '刚刚在线';
+  if (minutes < 60) return `${minutes}分钟前在线`;
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}小时前在线`;
+  return `${Math.floor(minutes / 1440)}天前在线`;
+}
 let contentPromise: Promise<GameContent> | undefined;
 function loadContent(): Promise<GameContent> {
   return contentPromise ??= fetch('/game/content.json').then(async response => {
@@ -71,8 +84,9 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
     app.canvas.style.display = 'block'; host.appendChild(app.canvas);
     const background = new TilingSprite({ texture: Texture.EMPTY, width: app.screen.width, height: app.screen.height });
     app.stage.addChild(background);
-    const camera = new Container(), scenery = new Container(), items = new Container(), ropeGraphics = new Graphics(), actors = new Container();
-    camera.addChild(scenery, items, ropeGraphics, actors); app.stage.addChild(camera);
+    const camera = new Container(), scenery = new Container(), items = new Container(), ropeGraphics = new Graphics(), actors = new Container(), targetMarker = new Graphics();
+    camera.addChild(scenery, items, targetMarker, ropeGraphics, actors); app.stage.addChild(camera);
+    const grey = new ColorMatrixFilter(); grey.desaturate();
     const local = new LocalPlayer(content), remote = new RemotePlayers();
     disposeLocal = () => local.dispose();
     let lastWorld: WorldSnapshot | null = null;
@@ -115,11 +129,13 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
         container.addChild(picture); layers.set(layer.id, picture);
       }
       const label = new Text({ text: actor.nickname, style: { fontFamily: 'GameFont, Microsoft YaHei, sans-serif', fontSize: 25, fontWeight: '600', fill: '#273b34', stroke: { color: '#ffffff', width: 5 }, align: 'center' }, resolution: 2 });
-      label.anchor.set(.5, 1); label.y = -90; container.addChild(label); actors.addChild(container);
-      return { container, layers, label, marker, character, animation: '', animationTime: 0, x: actor.x, y: actor.y };
+      label.anchor.set(.5, 1); label.y = -90; container.addChild(label);
+      const note = new Text({ text: '', style: { fontFamily: 'Microsoft YaHei, PingFang SC, sans-serif', fontSize: 19, fill: '#4f5b55', stroke: { color: '#ffffff', width: 4 }, align: 'center' }, resolution: 2 });
+      note.anchor.set(.5, 1); note.y = -122; note.visible = false; container.addChild(note); actors.addChild(container);
+      return { container, layers, label, note, marker, character, animation: '', animationTime: 0, x: actor.x, y: actor.y };
     }
     app.ticker.add(ticker => {
-      const { world, selfId, readInput, sendInput } = state();
+      const { world, selfId, readInput, sendInput, lastSeen, offline, view: shared } = state();
       if (!world) { status('正在连接公共大厅…'); return; }
       status(null);
       const dt = Math.min(ticker.deltaMS / 1000, .1), now = performance.now() / 1000;
@@ -129,9 +145,17 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
         if (!ensure(content[world.kind].atlases)) { status('正在载入关卡素材…'); return; }
         buildScene(world.kind);
       }
-      const live = new Set(world.players.map(p => p.id));
+      // Offline cats are drawn where they were left; they have no body and nothing collides with them.
+      const standing: ActorSnapshot[] = world.kind === 'lobby' ? offline.filter(p => !world.players.some(a => a.id === p.id)).map(p => ({ ...p, vx: 0, vy: 0, facing: 1, grounded: true })) : [];
+      const shownActors = [...world.players, ...standing], wallClock = Date.now();
+      // Cats that never moved share the spawn point; label only the most recent in each crowd.
+      const crowded = new Set<string>(), labelled: ActorSnapshot[] = [];
+      for (const actor of [...standing].sort((a, b) => (lastSeen.get(b.id) ?? 0) - (lastSeen.get(a.id) ?? 0))) {
+        if (labelled.some(other => Math.abs(other.x - actor.x) < 150 && Math.abs(other.y - actor.y) < 80)) crowded.add(actor.id); else labelled.push(actor);
+      }
+      const live = new Set(shownActors.map(p => p.id));
       for (const [id, view] of actorViews) if (!live.has(id)) { view.container.destroy({ children: true }); actorViews.delete(id); }
-      for (const actor of world.players) {
+      for (const actor of shownActors) {
         if (!ensure(characterAtlases(actor.characterId))) continue;
         let view = actorViews.get(actor.id);
         if (view && view.character.id !== actor.characterId) { view.container.destroy({ children: true }); actorViews.delete(actor.id); view = undefined; }
@@ -140,7 +164,12 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
         const shown: Pose = (actor.id === selfId && predicted) || remote.sample(actor.id, now) || actor;
         view.x = shown.x; view.y = shown.y;
         view.container.position.set(view.x, -view.y);
-        view.label.text = actor.nickname;
+        view.label.text = actor.nickname; view.label.visible = !crowded.has(actor.id);
+        const seen = actor.id === selfId ? undefined : lastSeen.get(actor.id);
+        view.note.visible = seen !== undefined && !crowded.has(actor.id);
+        if (seen !== undefined) view.note.text = lastSeenText(seen, wallClock);
+        const filters = seen !== undefined ? [grey] : [];
+        if (view.container.filters?.length !== filters.length) { view.container.filters = filters; view.container.alpha = filters.length ? .62 : 1; }
         const desired = !shown.grounded && world.kind === 'challenge' ? 'Jump' : Math.hypot(shown.vx, shown.vy) > 55 ? 'Move' : 'Idle';
         if (view.animation !== desired) { view.animation = desired; view.animationTime = 0; }
         else view.animationTime += dt;
@@ -194,6 +223,9 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
       // Exposes the drawn own position for browser tests and latency diagnostics.
       const own = actorViews.get(selfId);
       if (own) { app.canvas.dataset.selfX = own.x.toFixed(1); app.canvas.dataset.selfY = own.y.toFixed(1); app.canvas.dataset.predicted = String(!!predicted); }
+      app.canvas.dataset.offlineIds = standing.map(actor => actor.id).join(' ');
+      targetMarker.clear();
+      if (shared.target) targetMarker.ellipse(shared.target.x, -shared.target.y, 34, 11).stroke({ color: '#ffffff', width: 5, alpha: .85 });
       if (focus) {
         const targetY = -focus.y - (world.kind === 'challenge' ? 110 : 0);
         if (!hasCamera) { cameraX = focus.x; cameraY = targetY; hasCamera = true; }
@@ -202,6 +234,7 @@ export function mountGameRenderer(host: HTMLElement, state: () => RenderState, s
       const baseZoom = world.kind === 'lobby' ? R.render.lobbyZoom : R.render.challengeZoom;
       const zoom = baseZoom * Math.min(1, Math.max(.67, app.screen.width / 1000));
       camera.scale.set(zoom); camera.position.set(app.screen.width / 2 - cameraX * zoom, app.screen.height / 2 - cameraY * zoom);
+      Object.assign(shared, { cameraX, cameraY, zoom, width: app.screen.width, height: app.screen.height, self: own ? { x: own.x, y: own.y } : undefined });
       background.width = app.screen.width; background.height = app.screen.height;
       const halfWidth = app.screen.width / zoom / 2, halfHeight = app.screen.height / zoom / 2;
       for (const { sprite: picture, visual: v, radius } of lobbySprites) picture.visible = Math.abs(v.matrix[4] - cameraX) < halfWidth + radius && Math.abs(v.matrix[5] - cameraY) < halfHeight + radius;

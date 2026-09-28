@@ -1,5 +1,5 @@
 import { randomBytes, randomInt, randomUUID } from 'node:crypto';
-import { MIN_PARTY_SIZE, type ChatMessage, type InputState, type Invitation, type MicReport, type Party, type PlayerProfile, type SocialState, type WorldSnapshot } from '../shared/protocol.ts';
+import { MIN_PARTY_SIZE, type ChatMessage, type InputState, type Invitation, type MicReport, type OfflinePlayer, type Party, type PlayerProfile, type SocialState, type WorldSnapshot } from '../shared/protocol.ts';
 import type { AccountStore } from './accounts.ts';
 import type { AppConfig } from './config.ts';
 import { AppError, assert } from './errors.ts';
@@ -15,6 +15,8 @@ export interface Connection {
 interface Peer {
   profile: PlayerProfile; connection: Connection | null; lastConnectionId: string;
   partyId: string | null; ready: boolean; autoReady: boolean; mic: MicReport;
+  /** Explicitly readied without a working microphone; kept across mic report changes. */
+  micless: boolean; lastSeenAt: number;
   micVersion: number; verified: boolean; verifiedAt: number; lastInput: number; sequence: number; serverSequence: number;
   /** Client inputs waiting for their physics tick, and the newest one already simulated. */
   inputs: InputState[]; ack: number;
@@ -27,6 +29,8 @@ interface Team {
 }
 const unchecked = (): MicReport => ({ status: 'unchecked', hasSignal: false, voiceConnected: false, published: false });
 const goodMic = (report: MicReport) => report.status === 'ok' && report.hasSignal && report.voiceConnected && report.published;
+/** Verified microphone readiness, or an explicit choice to play without one. */
+const isReady = (peer: Peer) => Boolean(peer.connection) && (peer.micless || (peer.ready && peer.autoReady && goodMic(peer.mic)));
 const zeroInput = { x: 0, y: 0, jump: false, sequence: 0 };
 // Clients send one input per 60 Hz tick. A short queue absorbs network jitter; beyond it the
 // oldest inputs are merged away so a backlog never turns into permanent input delay.
@@ -44,6 +48,8 @@ export class GameService {
   private peers = new Map<string, Peer>();
   private parties = new Map<string, Team>();
   private chat: ChatMessage[] = [];
+  /** Cats left in the lobby by players whose reconnect window expired, newest first. */
+  private away = new Map<string, OfflinePlayer>();
   private voiceChecking = false;
   private disposed = false;
   private profileListener = (profile: PlayerProfile) => this.updateProfile(profile);
@@ -54,6 +60,7 @@ export class GameService {
   ) {
     accounts.on('profile', this.profileListener);
     accounts.on('password', this.passwordListener);
+    for (const player of accounts.recentlySeen(Date.now() - config.game.offlineHours * 3600_000, config.game.offlineLimit)) this.away.set(player.id, player);
   }
   get onlineCount() { return [...this.peers.values()].filter(peer => peer.connection).length; }
   get partyCount() { return this.parties.size; }
@@ -65,15 +72,16 @@ export class GameService {
     let peer = this.peers.get(userId);
     if (!peer) {
       assert(this.peers.size < this.config.game.maxPlayers, 'park_full', '大厅暂时满员，请稍后重试', 503);
-      peer = { profile: account.profile, connection: null, lastConnectionId: connection.id, partyId: null, ready: false, autoReady: account.autoReady, mic: unchecked(), micVersion: 0, verified: false, verifiedAt: 0, lastInput: 0, sequence: -1, serverSequence: 0, inputs: [], ack: -1, lastChat: 0, lastGrant: 0, actionAt: 0, actionCount: 0, invitations: new Map() };
+      peer = { profile: account.profile, connection: null, lastConnectionId: connection.id, partyId: null, ready: false, autoReady: account.autoReady, mic: unchecked(), micless: false, lastSeenAt: 0, micVersion: 0, verified: false, verifiedAt: 0, lastInput: 0, sequence: -1, serverSequence: 0, inputs: [], ack: -1, lastChat: 0, lastGrant: 0, actionAt: 0, actionCount: 0, invitations: new Map() };
       this.peers.set(userId, peer);
+      this.away.delete(userId);
       this.lobby.addPlayer(peer.profile);
     }
     const previous = peer.connection;
     clearTimeout(peer.timer);
     peer.profile = account.profile; peer.autoReady = account.autoReady;
     peer.connection = connection; peer.lastConnectionId = connection.id; peer.sequence = -1; peer.inputs = []; peer.ack = -1;
-    this.clearReady(peer, unchecked());
+    this.clearReady(peer, unchecked(), true);
     this.applyInput(peer, zeroInput);
     if (previous && previous.id !== connection.id) previous.close(4001);
     this.broadcastSocial();
@@ -82,9 +90,9 @@ export class GameService {
   disconnect(userId: string, connectionId: string, immediate = false) {
     const peer = this.peers.get(userId);
     if (!peer || peer.lastConnectionId !== connectionId) return;
-    peer.connection = null; peer.inputs = [];
+    peer.connection = null; peer.inputs = []; peer.lastSeenAt = Date.now();
     this.applyInput(peer, zeroInput);
-    this.clearReady(peer, { ...unchecked(), status: 'disconnected', message: '游戏连接已断开' });
+    this.clearReady(peer, { ...unchecked(), status: 'disconnected', message: '游戏连接已断开' }, true);
     const party = peer.partyId ? this.parties.get(peer.partyId) : undefined;
     if (party?.simulation) this.endGame(party);
     if (peer.partyId) void this.voice.remove(peer.partyId, userId).catch(() => {});
@@ -100,9 +108,23 @@ export class GameService {
     const peer = this.peers.get(userId);
     if (!peer || peer.lastConnectionId !== connectionId || peer.connection) return;
     if (peer.partyId) this.leaveParty(peer);
+    this.rememberAway([peer]);
     this.lobby.removePlayer(userId);
     this.peers.delete(userId);
     this.broadcastSocial();
+  }
+  /** Keeps offline cats standing where they were, both in memory and across restarts. */
+  private rememberAway(peers: Peer[]) {
+    const positions = new Map(this.lobby.snapshot().players.map(actor => [actor.id, actor]));
+    for (const peer of peers) {
+      const actor = positions.get(peer.profile.id);
+      if (!actor) continue;
+      const player = { ...peer.profile, x: actor.x, y: actor.y, lastSeenAt: peer.lastSeenAt || Date.now() };
+      this.accounts.setLastSeen(player.id, player.lastSeenAt, player.x, player.y);
+      this.away.delete(player.id); this.away.set(player.id, player);
+    }
+    const newest = [...this.away.values()].sort((a, b) => b.lastSeenAt - a.lastSeenAt).slice(0, this.config.game.offlineLimit);
+    this.away = new Map(newest.map(player => [player.id, player]));
   }
   private invalidateSession(userId: string) {
     const peer = this.peers.get(userId);
@@ -113,6 +135,8 @@ export class GameService {
     connection?.close(4003);
   }
   private updateProfile(profile: PlayerProfile) {
+    const away = this.away.get(profile.id);
+    if (away) this.away.set(profile.id, { ...away, ...profile });
     const peer = this.peers.get(profile.id);
     if (!peer) return;
     peer.profile = profile;
@@ -131,20 +155,22 @@ export class GameService {
     const team = peer.partyId ? this.parties.get(peer.partyId) : undefined;
     const party: Party | null = team ? {
       id: team.id, leaderId: team.leaderId, inviteCode: team.inviteCode, phase: team.phase, maxMembers: this.config.game.maxPartySize,
-      members: [...team.members].map(id => { const member = this.peers.get(id)!; return { ...member.profile, online: Boolean(member.connection), ready: member.ready, autoReady: member.autoReady, mic: { ...member.mic } }; }),
+      members: [...team.members].map(id => { const member = this.peers.get(id)!; return { ...member.profile, online: Boolean(member.connection), ready: isReady(member), autoReady: member.autoReady, mic: { ...member.mic }, micless: member.micless && !member.ready }; }),
     } : null;
     return {
       self: { ...peer.profile }, party, invitations: [...peer.invitations.values()], chat: this.chat,
-      players: [...this.peers.values()].map(player => ({ ...player.profile, online: Boolean(player.connection), partyId: player.partyId, world: player.partyId && this.parties.get(player.partyId)?.simulation ? 'challenge' : 'lobby' })),
+      players: [...this.peers.values()].map(player => ({ ...player.profile, online: Boolean(player.connection), lastSeenAt: player.connection ? null : player.lastSeenAt, partyId: player.partyId, world: player.partyId && this.parties.get(player.partyId)?.simulation ? 'challenge' : 'lobby' })),
       voiceAvailable: this.voice.available,
+      offline: [...this.away.values()].filter(player => player.lastSeenAt >= Date.now() - this.config.game.offlineHours * 3600_000),
     };
   }
   private broadcastSocial() {
     if (this.disposed) return;
     for (const [id, peer] of this.peers) peer.connection?.send('social', this.socialFor(id));
   }
-  private clearReady(peer: Peer, report: MicReport) {
+  private clearReady(peer: Peer, report: MicReport, keepMicless = false) {
     peer.micVersion++; peer.mic = report; peer.ready = false; peer.verified = false; peer.verifiedAt = 0;
+    if (!keepMicless) peer.micless = false;
   }
   private error(peer: Peer, error: unknown) {
     peer.connection?.send('error', error instanceof AppError ? { code: error.code, message: error.message } : { code: 'server_error', message: '操作未完成，请稍后重试' });
@@ -213,15 +239,15 @@ export class GameService {
         case 'party.ready': {
           this.requireParty(peer);
           peer.autoReady = action.ready; this.accounts.setAutoReady(userId, action.ready);
-          peer.ready = false; peer.micVersion++;
+          peer.ready = false; peer.micVersion++; peer.micless = action.ready && Boolean(action.withoutMic);
           if (action.ready) await this.verifyPeer(peer);
           this.broadcastSocial();
-          if (action.ready && !peer.ready) throw new AppError('microphone_not_ready', '麦克风与队伍语音检查通过后才能准备');
+          if (action.ready && !isReady(peer)) throw new AppError('microphone_not_ready', '麦克风与队伍语音检查通过后才能准备');
           break;
         }
         case 'mic': {
           const changed = JSON.stringify(peer.mic) !== JSON.stringify(action.report);
-          if (changed) this.clearReady(peer, { ...action.report });
+          if (changed) this.clearReady(peer, { ...action.report }, true);
           if (peer.partyId && goodMic(peer.mic)) await this.verifyPeer(peer);
           if (changed) this.broadcastSocial();
           break;
@@ -293,15 +319,16 @@ export class GameService {
     assert(restart ? Boolean(party.simulation) : !party.simulation, 'invalid_phase', restart ? '当前没有可以重开的对局' : '队伍已经开始游戏');
     assert(party.members.size >= MIN_PARTY_SIZE, 'not_enough_players', `至少 ${MIN_PARTY_SIZE} 人才能开始`);
     const members = shuffled([...party.members].map(id => this.peers.get(id)!));
-    assert(members.every(member => member.connection && member.ready && member.autoReady && goodMic(member.mic)), 'players_not_ready', '所有队员在线且麦克风检查通过并准备后才能开始');
+    assert(members.every(isReady), 'players_not_ready', '所有队员在线并准备后才能开始');
     party.starting = true;
     const generation = party.generation;
     let simulation: GameSimulation | undefined;
     try {
-      const checks = await Promise.all(members.map(member => this.verifyPeer(member)));
+      // Members who chose to play without a microphone have no voice track to verify.
+      const checks = await Promise.all(members.filter(member => !member.micless).map(member => this.verifyPeer(member)));
       assert(checks.every(Boolean), 'voice_check_failed', '语音检查未通过，请确认所有队员麦克风与语音连接');
       simulation = await this.createSimulation('challenge');
-      assert(this.parties.get(party.id) === party && party.generation === generation && party.leaderId === peer.profile.id && members.every(member => member.connection && member.partyId === party.id && member.ready && member.autoReady && goodMic(member.mic)), 'party_changed', '队伍状态发生变化，请重新准备');
+      assert(this.parties.get(party.id) === party && party.generation === generation && party.leaderId === peer.profile.id && members.every(member => member.partyId === party.id && isReady(member)), 'party_changed', '队伍状态发生变化，请重新准备');
       for (const member of members) simulation.addPlayer(member.profile);
       for (const member of members) this.lobby.removePlayer(member.profile.id);
       party.simulation?.dispose(); party.simulation = simulation; simulation = undefined;
@@ -340,6 +367,8 @@ export class GameService {
     finally { this.voiceChecking = false; }
   }
   dispose() {
+    // Players online at shutdown reappear as offline cats after a restart.
+    try { this.rememberAway([...this.peers.values()]); } catch (error) { console.error('Failed to save offline cats:', error); }
     this.disposed = true;
     this.accounts.off('profile', this.profileListener); this.accounts.off('password', this.passwordListener);
     for (const peer of this.peers.values()) clearTimeout(peer.timer);

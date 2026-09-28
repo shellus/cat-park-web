@@ -21,7 +21,7 @@ export default defineConfig({
   expect: { timeout: 15_000 }, workers: 1, fullyParallel: false,
   reporter: 'list',
   use: {
-    baseURL: 'http://localhost:3000',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://localhost:3000',
     viewport: { width: 1440, height: 900 },
     permissions: ['microphone'],
     launchOptions: { args: [

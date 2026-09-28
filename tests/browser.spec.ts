@@ -127,3 +127,80 @@ test('desktop and mobile layouts render the original scene without page overflow
     await phone.screenshot({ path: '.impeccable/review/mobile-landscape.png', fullPage: true });
   } finally { await mobile.close(); }
 });
+
+test('an optional username becomes a second login name and the first-entry prompt can be dismissed', async ({ page, request }) => {
+  await enter(page);
+  const original = await credentials(page);
+  await page.getByTestId('username-prompt-open').click();
+  const username = `cat_${Date.now().toString(36)}`;
+  await page.getByTestId('username-input').fill(username);
+  await page.getByTestId('username-submit').click();
+  await expect(page.getByText(`以后可以用“${username}”和密码登录。`)).toBeVisible();
+  const byName = await request.post('/api/account/login', { data: { userId: username.toUpperCase(), password: original.password } });
+  expect(byName.ok()).toBe(true);
+  expect((await byName.json()).profile.id).toBe(original.userId);
+  await page.keyboard.press('Escape');
+  await page.reload();
+  await expect(page.getByTestId('game-canvas')).toHaveAttribute('data-world', 'lobby');
+  await expect(page.getByTestId('username-prompt-open')).toHaveCount(0);
+});
+
+test('a player whose microphone is denied can still ready after confirming', async ({ page, browser }) => {
+  await page.addInitScript(() => {
+    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Permission denied by test device', 'NotAllowedError'); };
+  });
+  await enter(page);
+  const secondContext = await browser.newContext({ permissions: ['microphone'], baseURL: new URL(page.url()).origin });
+  try {
+    const second = await peer(secondContext);
+    await page.getByTestId('create-party').click();
+    await page.getByRole('button', { name: /在线玩家/ }).click();
+    await page.getByTestId(`invite-player-${(await credentials(second)).userId}`).click();
+    await second.locator('[data-testid^="accept-invite-"]').first().click();
+    await second.getByTestId('mic-check').click();
+    await page.getByTestId('mic-check').click();
+    await page.getByTestId('ready-without-mic').click();
+    await page.getByTestId('confirm-micless').click();
+    await expect(second.getByText('不开麦参加，队友听不到 TA')).toBeVisible();
+    await expect(page.getByTestId('start-game')).toBeEnabled({ timeout: 30_000 });
+    await page.getByTestId('start-game').click();
+    await expect(second.getByTestId('game-canvas')).toHaveAttribute('data-world', 'challenge');
+  } finally { await secondContext.close(); }
+});
+
+test('touch: a tap walks the cat to the spot and a held drag steers like a joystick', async ({ browser, baseURL }) => {
+  const mobile = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  try {
+    const phone = await peer(mobile);
+    const canvas = phone.locator('canvas');
+    await expect(canvas).toHaveAttribute('data-predicted', 'true');
+    const position = async () => ({ x: Number(await canvas.getAttribute('data-self-x')), y: Number(await canvas.getAttribute('data-self-y')) });
+    // Real touch points through CDP, so the browser produces genuine pointer events and capture.
+    const cdp = await mobile.newCDPSession(phone);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
+    let before = await position();
+    await touch('touchStart', 195, 640); await touch('touchEnd', 195, 640);
+    await expect.poll(async () => before.y - (await position()).y, { timeout: 5000 }).toBeGreaterThan(120);
+    before = await position();
+    await touch('touchStart', 195, 420);
+    for (const x of [185, 170, 150]) await touch('touchMove', x, 420);
+    await expect(phone.locator('.game-stick')).toBeVisible();
+    await phone.waitForTimeout(500);
+    await touch('touchEnd', 150, 420);
+    expect(before.x - (await position()).x).toBeGreaterThan(100);
+    await expect(phone.locator('.game-stick')).toHaveCount(0);
+  } finally { await mobile.close(); }
+});
+
+test('an offline player stays in the lobby greyed out instead of disappearing', async ({ page, browser }) => {
+  await enter(page);
+  const otherContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
+  const other = await peer(otherContext);
+  const { userId } = await credentials(other);
+  await otherContext.close();
+  // The test instance keeps a reconnect seat for a few seconds, then leaves an offline cat.
+  await page.getByRole('button', { name: /在线玩家/ }).click();
+  await expect(page.getByTestId(`invite-player-${userId}`)).toHaveCount(0, { timeout: 15_000 });
+  await expect.poll(() => page.locator('canvas').getAttribute('data-offline-ids')).toContain(userId);
+  await page.screenshot({ path: '.impeccable/review/offline-cat.png' });
+});

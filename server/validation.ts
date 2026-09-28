@@ -13,7 +13,7 @@ export const actionSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('party.decline'), invitationId: id }),
   z.strictObject({ type: z.literal('party.leave') }),
   z.strictObject({ type: z.literal('party.disband') }),
-  z.strictObject({ type: z.literal('party.ready'), ready: z.boolean() }),
+  z.strictObject({ type: z.literal('party.ready'), ready: z.boolean(), withoutMic: z.boolean().optional() }),
   z.strictObject({ type: z.literal('party.start') }),
   z.strictObject({ type: z.literal('party.return') }),
   z.strictObject({ type: z.literal('party.restart') }),
@@ -22,4 +22,5 @@ export const actionSchema = z.discriminatedUnion('type', [
 ]);
 export const profileSchema = z.strictObject({ nickname: z.string().max(48).optional(), characterId: id.optional(), color: z.string().max(16).optional() }).refine(value => Object.keys(value).length > 0);
 export const loginSchema = z.strictObject({ userId: id, password: z.string().max(72) });
+export const usernameSchema = z.strictObject({ username: z.string().max(40) });
 export const passwordSchema = z.strictObject({ currentPassword: z.string().max(72), newPassword: z.string().max(72) });

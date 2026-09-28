@@ -4,7 +4,7 @@ import type { AccountStore } from './accounts.ts';
 import type { AppConfig } from './config.ts';
 import type { GameService } from './game-service.ts';
 import { AppError, assert } from './errors.ts';
-import { loginSchema, passwordSchema, profileSchema } from './validation.ts';
+import { loginSchema, passwordSchema, profileSchema, usernameSchema } from './validation.ts';
 
 export function createApi(accounts: AccountStore, service: GameService, config: AppConfig) {
   const router = express.Router();
@@ -26,15 +26,20 @@ export function createApi(accounts: AccountStore, service: GameService, config: 
     const header = request.headers.authorization;
     const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : '';
     const account = accounts.authenticate(token);
-    if (!account) return next(new AppError('unauthorized', '登录已失效，请使用已保存的用户 ID 和密码登录', 401));
+    if (!account) return next(new AppError('unauthorized', '登录已失效，请使用已保存的账号和密码登录', 401));
     response.locals.account = account;
     next();
   };
   router.post('/account/guest', authLimit, async (_request, response) => response.status(201).json(await accounts.guest()));
   router.post('/account/login', authLimit, async (request, response) => {
     const result = loginSchema.safeParse(request.body);
-    assert(result.success, 'invalid_request', '请输入用户 ID 和密码');
+    assert(result.success, 'invalid_request', '请输入账号和密码');
     response.json(await accounts.login(result.data.userId, result.data.password));
+  });
+  router.put('/account/username', authLimit, requireAuth, (request, response) => {
+    const result = usernameSchema.safeParse(request.body);
+    assert(result.success, 'invalid_request', '请输入用户名');
+    response.json({ username: accounts.setUsername(response.locals.account.profile.id, result.data.username) });
   });
   router.patch('/account/profile', requireAuth, (request, response) => {
     const result = profileSchema.safeParse(request.body);

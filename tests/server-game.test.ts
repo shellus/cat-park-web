@@ -217,3 +217,52 @@ test('inputs are simulated one per tick, acknowledged in snapshots and bounded u
     assert.equal(f.connections[0].events.filter(event => event.type === 'world').at(-1)!.value.ack, 20);
   } finally { f.close(); }
 });
+
+test('a member may ready without a microphone; the choice survives mic reports and reconnects and allows start', async () => {
+  const f = await fixture(2);
+  try {
+    await f.send(0, { type: 'party.invite', userId: f.users[1].profile.id });
+    await f.send(1, { type: 'party.accept', invitationId: f.social(1).invitations[0].id });
+    await f.send(0, { type: 'mic', report: good });
+    await f.send(1, { type: 'mic', report: { status: 'denied', hasSignal: false, voiceConnected: false, published: false } });
+    await f.send(1, { type: 'party.ready', ready: true });
+    assert.equal(f.connections[1].events.at(-1)!.value.code, 'microphone_not_ready');
+    await f.send(1, { type: 'party.ready', ready: true, withoutMic: true });
+    const member = () => f.social(0).party!.members.find(item => item.id === f.users[1].profile.id)!;
+    assert.equal(member().ready, true); assert.equal(member().micless, true);
+    await f.send(1, { type: 'mic', report: { status: 'missing', hasSignal: false, voiceConnected: false, published: false } });
+    f.service.disconnect(f.users[1].profile.id, f.connections[1].id);
+    assert.equal(member().ready, false);
+    f.service.connect(f.users[1].profile.id, f.connections[1]);
+    assert.equal(member().ready, true);
+    const checks = f.voice.checks.length;
+    await f.send(0, { type: 'party.start' });
+    assert.equal(f.social(0).party!.phase, 'playing');
+    assert.deepEqual(f.voice.checks.slice(checks), [f.users[0].profile.id]);
+    await f.send(1, { type: 'party.return' });
+    // A working microphone later turns it back into a verified voice ready.
+    await f.send(1, { type: 'mic', report: good });
+    assert.equal(member().ready, true); assert.equal(member().micless, false);
+    await f.send(1, { type: 'party.ready', ready: false });
+    assert.equal(member().ready, false);
+    await f.send(1, { type: 'party.leave' });
+    assert.equal(f.social(1).party, null);
+  } finally { f.close(); }
+});
+
+test('an expired player stays in the lobby as an offline cat until they return', async () => {
+  const f = await fixture(2);
+  try {
+    const id = f.users[1].profile.id;
+    f.service.disconnect(id, f.connections[1].id);
+    const presence = f.social(0).players.find(player => player.id === id)!;
+    assert.equal(presence.online, false); assert.equal(typeof presence.lastSeenAt, 'number');
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.equal(f.social(0).players.some(player => player.id === id), false);
+    assert.deepEqual(f.social(0).offline.map(player => player.id), [id]);
+    assert.equal(f.lobby.players.has(id), false);
+    assert(f.accounts.recentlySeen(0, 10).some(player => player.id === id));
+    f.service.connect(id, connection('back'));
+    assert.equal(f.social(0).offline.length, 0);
+  } finally { f.close(); }
+});

@@ -10,6 +10,9 @@ game:
   maxPartySize: 6
   maxPlayers: 100
   reconnectSeconds: 30
+  # 离线玩家的小猫在大厅原地变灰保留的小时数与数量上限。
+  offlineHours: 24
+  offlineLimit: 30
 # 本地素材包目录，相对项目根目录；也可运行 npm run assets -- --source <目录>。
 # assets:
 #   package: path/to/asset-package

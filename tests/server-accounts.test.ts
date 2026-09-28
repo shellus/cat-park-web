@@ -51,3 +51,26 @@ test('password rotation invalidates all previous sessions and rejects bcrypt tru
     assert.equal(concurrent.filter(result => result.status === 'fulfilled').length, 1);
   } finally { store.close(); }
 });
+
+test('optional username logs in alongside the user ID, is unique case-insensitively and migrates old databases', async () => {
+  const root = mkdtempSync(resolve(tmpdir(), 'cat-account-'));
+  const path = resolve(root, 'account.sqlite');
+  let store = new AccountStore(path, characters, 4);
+  try {
+    const [first, second] = [await store.guest(), await store.guest()];
+    assert.equal(first.username, null);
+    assert.equal(store.setUsername(first.profile.id, ' Mao_01 '), 'Mao_01');
+    assert.throws(() => store.setUsername(second.profile.id, 'mao_01'), /已被使用/);
+    assert.throws(() => store.setUsername(second.profile.id, 'ab'));
+    assert.throws(() => store.setUsername(second.profile.id, 'has space'));
+    const byName = await store.login('MAO_01', first.credentials!.password);
+    assert.equal(byName.profile.id, first.profile.id);
+    assert.equal(byName.username, 'Mao_01');
+    await assert.rejects(store.login('Mao_01', second.credentials!.password));
+    store.setLastSeen(first.profile.id, 1000, 12, -34);
+    assert.deepEqual(store.recentlySeen(999, 10).map(player => [player.id, player.x, player.y]), [[first.profile.id, 12, -34]]);
+    assert.equal(store.recentlySeen(1001, 10).length, 0);
+    store.close(); store = new AccountStore(path, characters, 4);
+    assert.equal((await store.login('mao_01', first.credentials!.password)).profile.id, first.profile.id);
+  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+});
