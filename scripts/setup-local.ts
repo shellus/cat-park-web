@@ -51,7 +51,9 @@ export async function setupLocal(): Promise<{ localVoice: boolean }> {
   await writeFile(path.join(runtime, 'livekit.yaml'), YAML.stringify({
     port: Number(apiUrl.port || 7880),
     bind_addresses: ['127.0.0.1'],
-    rtc: { tcp_port: local.tcpPort, udp_port: local.udpPort, use_external_ip: false, node_ip: local.nodeIp },
+    // Tunnels forward public media to 127.0.0.1; LiveKit skips loopback for UDP unless enabled,
+    // so without this the UDP mapping delivers into nothing and remote clients fail ICE.
+    rtc: { tcp_port: local.tcpPort, udp_port: local.udpPort, use_external_ip: false, node_ip: local.nodeIp, enable_loopback_candidate: true },
     keys: { [voice.apiKey]: voice.apiSecret },
     logging: { level: 'warn' },
   }), { mode: 0o600 });

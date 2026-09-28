@@ -37,7 +37,7 @@ npm start
 
 外网网页入口可以通过 HTTPS 反向代理到游戏服务，且必须允许 Colyseus WebSocket 升级。以 Vite 开发模式通过外网域名访问时，需在 `config.yaml` 的 `server.allowedHosts` 中加入该域名，否则 Vite 会拒绝请求。网页入口和 LiveKit 入口是两个不同的协议端点：`voice.url` 填浏览器访问的 `wss://` 地址，`voice.apiUrl` 填游戏服务访问 LiveKit 管理 API 的 `http://` 或 `https://` 地址。不能把网页首页的 `https://` URL 直接当成 LiveKit 地址，也不能让外网浏览器使用 `localhost`。
 
-自托管 LiveKit 还需要公开其 WebSocket/API 端口、WebRTC TCP/UDP 端口；受限网络应配置 TURN/TLS。网页能打开只代表 HTTP 入口正常，不代表队伍语音已经可用，必须用两个真实浏览器完成入队、麦克风检查和队内通话验收。
+自托管 LiveKit 还需要公开其 WebSocket/API 端口、WebRTC TCP/UDP 端口；受限网络应配置 TURN/TLS。通过隧道把公网媒体端口转发到本机 `127.0.0.1` 时，LiveKit 默认不在回环地址上监听 UDP，会导致公网 UDP 包无人接收、ICE 一直停在 checking；`npm start` 生成的配置已开启 `rtc.enable_loopback_candidate`，自行编写 LiveKit 配置时也需开启。网页能打开只代表 HTTP 入口正常，不代表队伍语音已经可用，必须用两个真实浏览器完成入队、麦克风检查和队内通话验收。
 
 ## 配置与数据
 
