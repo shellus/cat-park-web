@@ -62,7 +62,7 @@ npm run prod
 
 浏览器联调使用 Playwright 与独立浏览器上下文；测试媒体设备产生的音频仅用于验证采集、发布和状态流转，不能当成手机真实麦克风/蓝牙耳机的验收。
 
-Linux 开发可用 `./tmux-dev-manager.sh start|stop|restart|status|attach|health` 管理 `cat-park-dev` 会话。Windows 可直接使用终端 `npm start`，停止时结束该命令。
+Linux 开发可用 `./tmux-dev-manager.sh start|stop|restart|status|attach|health` 管理 `cat-park-dev` 会话。Windows 可直接使用终端 `npm start`，停止时结束该命令；需要常驻时执行 `powershell -ExecutionPolicy Bypass -File scripts/windows-supervisor.ps1 -Register` 注册当前用户登录后自动启动的计划任务 `CatParkWeb`，进程退出后自动重启，输出写入 `.runtime/start.*.log`。`Stop-ScheduledTask CatParkWeb` 只停止监管进程，需同时结束其启动的 node 与 LiveKit；`-Unregister` 移除任务。
 
 ## 行为与验证边界
 
