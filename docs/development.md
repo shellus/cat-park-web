@@ -97,6 +97,6 @@ npm run diagnostics -- --source voice --user 用户ID
 npm run diagnostics -- --since 2026-09-28 --source http
 ```
 
-查询命令按接收时间从新到旧输出原始记录。构建时生成唯一版本号，将 source map 留在 `.runtime/client-sourcemaps/<build>/`，不放入公开 `dist/`；查询会用事件版本对应的映射补充源码文件、行列。发布到其他机器时保留对应映射目录，不能用新构建映射解释旧日志。开发构建使用 `development` 标识。
+查询命令按接收时间从新到旧输出原始记录。构建时生成唯一版本号，将 source map 留在 `.runtime/client-sourcemaps/<build>/`，不放入公开 `dist/`；查询会用事件版本对应的映射补充源码文件、行列。构建时删除早于 14 天（与诊断日志保留期一致）的旧映射目录；发布到其他机器时保留对应映射目录，不能用新构建映射解释旧日志。开发构建使用 `development` 标识。
 
 公网部署的真实地址、Tunnel 服务归属和媒体端口映射记录于 Git 忽略的根目录 `README.local.md`。具体手机失败先按用户、时间和 `voice` 来源读取日志，核对信令是否已连接、媒体候选是否指向既定公网端口，再判断 NAT、防火墙、UDP/TCP 可达性或 TURN 回退需求。
