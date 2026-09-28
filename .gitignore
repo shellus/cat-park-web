@@ -1,0 +1,12 @@
+/node_modules/
+/dist/
+/public/game/
+/data/
+/config.yaml
+/.runtime/
+/test-results/
+/playwright-report/
+/.impeccable/review/
+/README.local.md
+/.env
+/.env.*

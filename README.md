@@ -1,0 +1,61 @@
+# 萌猫公园网页版
+
+支持电脑和手机浏览器的多人协作游戏：在公共大厅散步聊天，邀请朋友组队，通过队内语音配合，一起挑战“绳子挑战 · 荡秋千”。
+
+当前已实现浏览器账号、角色与配色、公共聊天、组队邀请、LiveKit 队内语音，以及带绳索物理和位置预测的多人关卡。首版仅包含大厅与“荡秋千”单地图，物理手感仍在校准。
+
+## 游戏截图
+
+四只不同配色的小猫在同一实例中组队；游戏截图已实际开局。手机图使用 390 × 844 触摸视口，电脑图使用 1440 × 900 视口，均由 Chromium 实际渲染。
+
+<table>
+  <tr><th>电脑 · 大厅</th><th>电脑 · 游戏中</th></tr>
+  <tr>
+    <td><img src="./docs/screenshots/desktop-lobby.png" alt="电脑大厅：四只不同配色的小猫、四人队伍和公共聊天" width="640"></td>
+    <td><img src="./docs/screenshots/desktop-game.png" alt="电脑游戏中：四只小猫通过绳索相连，一起挑战荡秋千" width="640"></td>
+  </tr>
+  <tr><th>手机 · 大厅</th><th>手机 · 游戏中</th></tr>
+  <tr>
+    <td align="center"><img src="./docs/screenshots/mobile-lobby.png" alt="手机大厅：多只小猫与屏幕方向控制按钮" width="300"></td>
+    <td align="center"><img src="./docs/screenshots/mobile-game.png" alt="手机游戏中：绳索连接的队友与移动、跳跃触摸按钮" width="300"></td>
+  </tr>
+</table>
+
+## 本地运行
+
+需要 **Node.js 24+** 和本地素材包。**公开仓库不包含游戏素材或运行图集，单独克隆源码不能直接启动完整游戏。** 素材接入方式见 [开发与本地运行](./docs/development.md#素材打包)，使用前需自行取得相应素材的合法使用权限。
+
+具备素材包后运行：
+
+```sh
+npm ci
+npm start
+```
+
+默认打开 `http://localhost:3000`。`npm start` 生成运行素材、构建前端，并启动本地 LiveKit 和游戏服务；`npm run start:dev` 启用前端热更新。首次启动会生成本地配置和随机语音密钥。
+
+电脑使用 WASD / 方向键移动，关卡中用空格跳跃；手机使用屏幕方向键和跳跃按钮。至少两人组队，所有队员通过麦克风与语音检查并准备后，由队长开局。
+
+手机远程访问需要 HTTPS，以及浏览器可达的 LiveKit WSS 与 WebRTC 媒体端口。完整配置、构建和验证方法见 [开发与本地运行](./docs/development.md)，部署示例见 [部署说明](./deploy/README.md)。
+
+## 技术与文档
+
+前端使用 React、TypeScript 和 PixiJS；服务端使用 Node.js、Colyseus 与 SQLite；物理由 Rapier 2D 实现，队伍语音使用 LiveKit。
+
+- [业务术语](./CONTEXT.md)：大厅、队伍、对局和频道。
+- [网络协议](./shared/protocol.ts)：客户端与服务端的消息契约。
+- [游戏行为与验证边界](./docs/game-behavior.md)：已实现规则及待校准行为。
+
+## 许可证与素材
+
+本项目原创源码采用 [MIT License](./LICENSE)，版权人为 shellus。
+
+游戏图像、角色、音频、字体、地图等第三方内容及截图中包含的这些内容不属于 MIT 授权范围，其权利归原权利人所有；详见 [第三方内容说明](./THIRD_PARTY_NOTICES.md)。
+
+Git 仅跟踪应用源码、测试、公开文档与展示截图；素材包、运行图集、账号数据和私有配置不纳入仓库。
+
+## 后续工作
+
+- 持续校准碰撞、多人绳索、复活点、星星归属和出口通关时序。
+- 完成手机真实设备、蜂窝网络、蓝牙音频及公网 TURN/TLS 回退验证。
+- 校验部分原始纹理的平铺边缘色差，并评估前端大体积模块的按需加载；见 [开发说明](./docs/development.md)。

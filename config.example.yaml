@@ -1,0 +1,28 @@
+version: 1
+server:
+  host: 127.0.0.1
+  port: 3000
+  # 通过外网域名访问开发服务时，把域名加入 Vite Host 白名单。
+  # allowedHosts: [game.example.com]
+database:
+  path: data/game.sqlite
+game:
+  maxPartySize: 6
+  maxPlayers: 100
+  reconnectSeconds: 30
+# 本地素材包目录，相对项目根目录；也可运行 npm run assets -- --source <目录>。
+# assets:
+#   package: path/to/asset-package
+# 没有 voice 配置时仍可进入大厅、聊天和组队，但不能准备或开局。
+# voice:
+#   url: wss://voice.example.com
+#   apiUrl: http://127.0.0.1:7880
+#   apiKey: REPLACE_WITH_API_KEY
+#   apiSecret: REPLACE_WITH_API_SECRET
+#   # 声明后 npm start 仍会启动本地 LiveKit；Tunnel 需把信令和媒体端口映射到本机同号端口。
+#   local:
+#     enabled: true
+#     # LiveKit 对外公布给 WebRTC 客户端的公网节点地址。
+#     nodeIp: 203.0.113.10
+#     tcpPort: 7881
+#     udpPort: 7882

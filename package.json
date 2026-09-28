@@ -1,0 +1,56 @@
+{
+  "name": "cat-park-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "assets": "tsx scripts/prepare-assets.ts",
+    "dev": "tsx server/index.ts",
+    "start": "npm run build && tsx scripts/run-local.ts",
+    "start:dev": "npm run assets && tsx scripts/run-local.ts --dev",
+    "setup:local": "tsx scripts/setup-local.ts",
+    "build": "npm run assets && tsc --noEmit && vite build",
+    "prod": "tsx server/index.ts --production",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "test:browser": "playwright test",
+    "diagnostics": "tsx scripts/diagnostics.ts"
+  },
+  "dependencies": {
+    "@colyseus/core": "0.18.17",
+    "@colyseus/sdk": "0.18.4",
+    "@colyseus/ws-transport": "0.18.4",
+    "@dimforge/rapier2d-compat": "^0.19.3",
+    "@radix-ui/react-dialog": "^1.1.15",
+    "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
+    "express": "^5.1.0",
+    "livekit-client": "^2.15.0",
+    "livekit-server-sdk": "^2.14.0",
+    "lucide-react": "^0.468.0",
+    "pixi.js": "8.21.0",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "tsx": "^4.20.5",
+    "yaml": "^2.8.1",
+    "zod": "^4.1.0"
+  },
+  "devDependencies": {
+    "@jridgewell/trace-mapping": "^0.3.31",
+    "@playwright/test": "^1.55.0",
+    "@types/compression": "^1.8.1",
+    "@types/express": "^5.0.3",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@types/subset-font": "^2.3.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "sharp": "^0.35.5",
+    "subset-font": "^2.9.0",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7"
+  }
+}
