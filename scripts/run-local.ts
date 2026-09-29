@@ -20,13 +20,32 @@ try {
   const config = loadConfig(root);
   if (localVoice) {
     if (!config.voice) throw new Error('本地语音已启用但缺少 voice 配置。');
-    const voice = spawn(livekitBinary, ['--config', path.join(runtime, 'livekit.yaml')], { cwd: root, stdio: 'inherit', windowsHide: true });
+    const voice = spawn(livekitBinary, ['--config', path.join(runtime, 'livekit.yaml')], {
+      cwd: root,
+      stdio: 'inherit',
+      windowsHide: true,
+    });
     children.push(voice);
-    voice.on('error', error => { console.error(error.message); stop(1); });
-    voice.on('exit', code => { if (!stopping) { console.error('本地语音服务已停止。'); stop(code || 1); } });
+    voice.on('error', error => {
+      console.error(error.message);
+      stop(1);
+    });
+    voice.on('exit', code => {
+      if (!stopping) {
+        console.error('本地语音服务已停止。');
+        stop(code || 1);
+      }
+    });
     let ready = false;
     for (let i = 0; i < 40 && !stopping; i++) {
-      try { const response = await fetch(config.voice.apiUrl || config.voice.url.replace(/^ws/, 'http'), { signal: AbortSignal.timeout(700) }); ready = response.ok; } catch { /* readiness retry */ }
+      try {
+        const response = await fetch(config.voice.apiUrl || config.voice.url.replace(/^ws/, 'http'), {
+          signal: AbortSignal.timeout(700),
+        });
+        ready = response.ok;
+      } catch {
+        /* readiness retry */
+      }
       if (ready) break;
       await new Promise(resolve => setTimeout(resolve, 200));
     }
@@ -35,9 +54,19 @@ try {
   if (!stopping) {
     // npm start serves the built bundle (compressed, cache-friendly); --dev keeps Vite for local edits.
     const mode = process.argv.includes('--dev') ? [] : ['--production'];
-    const app = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts', ...mode], { cwd: root, stdio: 'inherit', windowsHide: true });
+    const app = spawn(process.execPath, ['--import', 'tsx', 'server/index.ts', ...mode], {
+      cwd: root,
+      stdio: 'inherit',
+      windowsHide: true,
+    });
     children.push(app);
-    app.on('error', error => { console.error(error.message); stop(1); });
+    app.on('error', error => {
+      console.error(error.message);
+      stop(1);
+    });
     app.on('exit', code => stop(code || 0));
   }
-} catch (error) { console.error(error instanceof Error ? error.message : error); stop(1); }
+} catch (error) {
+  console.error(error instanceof Error ? error.message : error);
+  stop(1);
+}

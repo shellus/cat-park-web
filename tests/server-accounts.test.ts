@@ -18,7 +18,8 @@ test('generated accounts persist, recover after database reopen and preserve can
     assert.equal(store.get(guest.profile.id)?.autoReady, true);
     store.setAutoReady(guest.profile.id, false);
     store.updateProfile(guest.profile.id, { nickname: '持久小猫' });
-    store.close(); store = new AccountStore(path, characters, 4);
+    store.close();
+    store = new AccountStore(path, characters, 4);
     const recovered = await store.login(guest.credentials.userId, guest.credentials.password);
     assert.equal(recovered.profile.nickname, '持久小猫');
     assert.equal(store.get(guest.profile.id)?.autoReady, false);
@@ -26,7 +27,10 @@ test('generated accounts persist, recover after database reopen and preserve can
     await assert.rejects(store.login(guest.profile.id, 'wrong-password'));
     assert.throws(() => store.updateProfile(guest.profile.id, { characterId: 'nonexistent' }));
     assert.throws(() => store.updateProfile(guest.profile.id, { nickname: 'a\n' }));
-  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test('password rotation invalidates all previous sessions and rejects bcrypt truncation', async () => {
@@ -49,7 +53,9 @@ test('password rotation invalidates all previous sessions and rejects bcrypt tru
       store.changePassword(first.profile.id, password, 'replacement-two'),
     ]);
     assert.equal(concurrent.filter(result => result.status === 'fulfilled').length, 1);
-  } finally { store.close(); }
+  } finally {
+    store.close();
+  }
 });
 
 test('optional username logs in alongside the user ID, is unique case-insensitively and migrates old databases', async () => {
@@ -68,9 +74,16 @@ test('optional username logs in alongside the user ID, is unique case-insensitiv
     assert.equal(byName.username, 'Mao_01');
     await assert.rejects(store.login('Mao_01', second.credentials!.password));
     store.setLastSeen(first.profile.id, 1000, 12, -34);
-    assert.deepEqual(store.recentlySeen(999, 10).map(player => [player.id, player.x, player.y]), [[first.profile.id, 12, -34]]);
+    assert.deepEqual(
+      store.recentlySeen(999, 10).map(player => [player.id, player.x, player.y]),
+      [[first.profile.id, 12, -34]],
+    );
     assert.equal(store.recentlySeen(1001, 10).length, 0);
-    store.close(); store = new AccountStore(path, characters, 4);
+    store.close();
+    store = new AccountStore(path, characters, 4);
     assert.equal((await store.login('mao_01', first.credentials!.password)).profile.id, first.profile.id);
-  } finally { store.close(); rmSync(root, { recursive: true, force: true }); }
+  } finally {
+    store.close();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

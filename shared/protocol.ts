@@ -3,47 +3,127 @@ export const MIN_PARTY_SIZE = 2;
 export const DEFAULT_MAX_PARTY_SIZE = 6;
 export const COLORS = ['#f5cb62', '#e79398', '#91baaa', '#98bde0', '#baa6d9', '#edab77'] as const;
 export type WorldKind = 'lobby' | 'challenge';
-export interface PlayerProfile { id: string; nickname: string; characterId: string; color: string }
-export interface Credentials { userId: string; password: string }
+export interface PlayerProfile {
+  id: string;
+  nickname: string;
+  characterId: string;
+  color: string;
+}
+export interface Credentials {
+  userId: string;
+  password: string;
+}
 /** `username` is an optional login alias for the UUID; it is never broadcast to other players. */
-export interface AuthResult { profile: PlayerProfile; token: string; username: string | null; credentials?: Credentials }
-export type MicStatus = 'unchecked' | 'checking' | 'denied' | 'missing' | 'silent' | 'connecting' | 'disconnected' | 'muted' | 'ok' | 'error';
-export interface MicReport { status: MicStatus; message?: string; hasSignal: boolean; voiceConnected: boolean; published: boolean }
-export interface Presence extends PlayerProfile { online: boolean; lastSeenAt: number | null; partyId: string | null; world: WorldKind }
+export interface AuthResult {
+  profile: PlayerProfile;
+  token: string;
+  username: string | null;
+  credentials?: Credentials;
+}
+export type MicStatus =
+  'unchecked' | 'checking' | 'denied' | 'missing' | 'silent' | 'connecting' | 'disconnected' | 'muted' | 'ok' | 'error';
+export interface MicReport {
+  status: MicStatus;
+  message?: string;
+  hasSignal: boolean;
+  voiceConnected: boolean;
+  published: boolean;
+}
+export interface Presence extends PlayerProfile {
+  online: boolean;
+  lastSeenAt: number | null;
+  partyId: string | null;
+  world: WorldKind;
+}
 export interface PartyMember extends PlayerProfile {
-  online: boolean; ready: boolean; autoReady: boolean; mic: MicReport;
+  online: boolean;
+  ready: boolean;
+  autoReady: boolean;
+  mic: MicReport;
   /** Manually readied without a verified microphone; teammates cannot hear this member. */
   micless: boolean;
 }
 export interface Party {
-  id: string; leaderId: string; members: PartyMember[]; phase: 'forming' | 'playing' | 'won';
-  maxMembers: number; inviteCode: string;
+  id: string;
+  leaderId: string;
+  members: PartyMember[];
+  phase: 'forming' | 'playing' | 'won';
+  maxMembers: number;
+  inviteCode: string;
   /** Outstanding invitations sent by this party, so the inviter can see who is still pending. */
   pending: { userId: string; expiresAt: number }[];
 }
 /** A cat left standing in the lobby after its player went offline; drawn greyed out. */
-export interface OfflinePlayer extends PlayerProfile { x: number; y: number; lastSeenAt: number }
-export interface Invitation { id: string; partyId: string; fromId: string; fromName: string; expiresAt: number }
-export interface ChatMessage { id: string; userId: string; nickname: string; text: string; sentAt: number }
+export interface OfflinePlayer extends PlayerProfile {
+  x: number;
+  y: number;
+  lastSeenAt: number;
+}
+export interface Invitation {
+  id: string;
+  partyId: string;
+  fromId: string;
+  fromName: string;
+  expiresAt: number;
+}
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  nickname: string;
+  text: string;
+  sentAt: number;
+}
 export interface SocialState {
-  self: PlayerProfile; players: Presence[]; party: Party | null; invitations: Invitation[];
-  chat: ChatMessage[]; voiceAvailable: boolean; offline: OfflinePlayer[];
+  self: PlayerProfile;
+  players: Presence[];
+  party: Party | null;
+  invitations: Invitation[];
+  chat: ChatMessage[];
+  voiceAvailable: boolean;
+  offline: OfflinePlayer[];
 }
 /** Sent once per 60 Hz client tick; the server simulates one queued input per physics tick. */
-export interface InputState { x: number; y: number; jump: boolean; sequence: number }
+export interface InputState {
+  x: number;
+  y: number;
+  jump: boolean;
+  sequence: number;
+}
 export interface ActorSnapshot extends PlayerProfile {
-  x: number; y: number; vx: number; vy: number; facing: number; grounded: boolean;
+  x: number;
+  y: number;
+  vx: number;
+  vy: number;
+  facing: number;
+  grounded: boolean;
 }
 export interface WorldSnapshot {
-  kind: WorldKind; tick: number; elapsed: number; players: ActorSnapshot[];
-  ropes: { a: string; b: string }[]; keyOwnerId: string | null;
-  collectedStars: string[]; doorOpen: boolean; won: boolean;
+  kind: WorldKind;
+  tick: number;
+  elapsed: number;
+  players: ActorSnapshot[];
+  ropes: { a: string; b: string }[];
+  keyOwnerId: string | null;
+  collectedStars: string[];
+  doorOpen: boolean;
+  won: boolean;
   /** Recipient's newest input sequence already simulated in this snapshot; -1 before any. */
   ack?: number;
 }
-export interface VoiceGrant { partyId: string; url: string; token: string }
-export interface ErrorNotice { code: string; message: string }
-export interface CharacterOption { id: string; name: string; preview: string }
+export interface VoiceGrant {
+  partyId: string;
+  url: string;
+  token: string;
+}
+export interface ErrorNotice {
+  code: string;
+  message: string;
+}
+export interface CharacterOption {
+  id: string;
+  name: string;
+  preview: string;
+}
 export type ClientMessage =
   | { type: 'input'; input: InputState }
   | { type: 'chat'; text: string }

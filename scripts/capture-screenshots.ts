@@ -15,9 +15,13 @@ const accounts: AuthResult[] = [];
 try {
   for (const [index, nickname] of ['小橘', '团子', '奶糖', '薄荷'].entries()) {
     const mobile = index === 1;
-    const context = await browser.newContext({ baseURL, permissions: ['microphone'],
+    const context = await browser.newContext({
+      baseURL,
+      permissions: ['microphone'],
       viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 900 },
-      isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1,
+      isMobile: mobile,
+      hasTouch: mobile,
+      deviceScaleFactor: 1,
     });
     const response = await context.request.post('/api/account/guest');
     expect(response.ok()).toBeTruthy();
@@ -52,7 +56,7 @@ try {
   // Every participant passes the same microphone + LiveKit publication check as a user.
   for (const page of pages) {
     const toggle = page.locator('.party-heading-toggle');
-    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
     await page.getByTestId('mic-check').click();
   }
   await expect(desktop.getByTestId('start-game')).toBeEnabled({ timeout: 45_000 });

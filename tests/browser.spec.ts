@@ -16,7 +16,9 @@ async function holdMoves(page: Page, key: string) {
   const canvas = page.locator('canvas');
   await expect(canvas).toHaveAttribute('data-predicted', 'true');
   const before = Number(await canvas.getAttribute('data-self-y'));
-  await page.keyboard.down(key); await page.waitForTimeout(300); await page.keyboard.up(key);
+  await page.keyboard.down(key);
+  await page.waitForTimeout(300);
+  await page.keyboard.up(key);
   return Math.abs(Number(await canvas.getAttribute('data-self-y')) - before);
 }
 async function peer(context: BrowserContext) {
@@ -25,7 +27,10 @@ async function peer(context: BrowserContext) {
   return page;
 }
 
-test('two independent players: public chat, real SFU audio, auto-ready cancellation and start', async ({ page, browser }) => {
+test('two independent players: public chat, real SFU audio, auto-ready cancellation and start', async ({
+  page,
+  browser,
+}) => {
   const failures: string[] = [];
   page.on('pageerror', error => failures.push(error.message));
   await enter(page);
@@ -74,7 +79,9 @@ test('two independent players: public chat, real SFU audio, auto-ready cancellat
     expect(heldX - startX).toBeGreaterThan(300);
     await page.keyboard.press('Space');
     expect(failures).toEqual([]);
-  } finally { await secondContext.close(); }
+  } finally {
+    await secondContext.close();
+  }
 });
 
 test('saved identity survives reload and password change replaces browser credentials', async ({ page, request }) => {
@@ -92,7 +99,9 @@ test('saved identity survives reload and password change replaces browser creden
   await expect.poll(async () => (await credentials(page)).password).toBe(nextPassword);
   const denied = await request.post('/api/account/login', { data: original });
   expect(denied.status()).toBe(401);
-  const allowed = await request.post('/api/account/login', { data: { userId: original.userId, password: nextPassword } });
+  const allowed = await request.post('/api/account/login', {
+    data: { userId: original.userId, password: nextPassword },
+  });
   expect(allowed.ok()).toBe(true);
 });
 
@@ -105,7 +114,9 @@ test('holding a key keeps the lobby cat moving without waiting for the server', 
 
 test('denied microphone remains visibly unready', async ({ page }) => {
   await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Permission denied by test device', 'NotAllowedError'); };
+    navigator.mediaDevices.getUserMedia = async () => {
+      throw new DOMException('Permission denied by test device', 'NotAllowedError');
+    };
   });
   await enter(page);
   await page.getByTestId('create-party').click();
@@ -118,7 +129,14 @@ test('desktop and mobile layouts render the original scene without page overflow
   mkdirSync('.impeccable/review', { recursive: true });
   await enter(page);
   await page.screenshot({ path: '.impeccable/review/desktop.png', fullPage: true });
-  const mobile = await browser.newContext({ baseURL: new URL(page.url()).origin, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, permissions: ['microphone'] });
+  const mobile = await browser.newContext({
+    baseURL: new URL(page.url()).origin,
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+    deviceScaleFactor: 1,
+    permissions: ['microphone'],
+  });
   try {
     const phone = await peer(mobile);
     // Portrait is not laid out: a full-screen hint asks to rotate, and it goes away in landscape.
@@ -132,7 +150,12 @@ test('desktop and mobile layouts render the original scene without page overflow
     const partyAction = phone.getByTestId('create-party');
     const box = (await partyAction.boundingBox())!;
     for (const x of [box.x + 8, box.x + box.width / 2, box.x + box.width - 8]) {
-      expect(await phone.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="create-party"]'), [x, box.y + box.height / 2] as const)).toBe(true);
+      expect(
+        await phone.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="create-party"]'), [
+          x,
+          box.y + box.height / 2,
+        ] as const),
+      ).toBe(true);
     }
     // Landscape in a browser tab still suggests installing, once, until dismissed.
     await expect(phone.getByTestId('install-tip')).toBeVisible();
@@ -142,10 +165,15 @@ test('desktop and mobile layouts render the original scene without page overflow
     await expect(phone.getByTestId('install-tip')).toHaveCount(0);
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await phone.screenshot({ path: '.impeccable/review/mobile-landscape.png', fullPage: true });
-  } finally { await mobile.close(); }
+  } finally {
+    await mobile.close();
+  }
 });
 
-test('an optional username becomes a second login name and the first-entry prompt can be dismissed', async ({ page, request }) => {
+test('an optional username becomes a second login name and the first-entry prompt can be dismissed', async ({
+  page,
+  request,
+}) => {
   await enter(page);
   const original = await credentials(page);
   await page.getByTestId('username-prompt-open').click();
@@ -153,7 +181,9 @@ test('an optional username becomes a second login name and the first-entry promp
   await page.getByTestId('username-input').fill(username);
   await page.getByTestId('username-submit').click();
   await expect(page.getByText(`以后可以用“${username}”和密码登录。`)).toBeVisible();
-  const byName = await request.post('/api/account/login', { data: { userId: username.toUpperCase(), password: original.password } });
+  const byName = await request.post('/api/account/login', {
+    data: { userId: username.toUpperCase(), password: original.password },
+  });
   expect(byName.ok()).toBe(true);
   expect((await byName.json()).profile.id).toBe(original.userId);
   await page.keyboard.press('Escape');
@@ -164,7 +194,9 @@ test('an optional username becomes a second login name and the first-entry promp
 
 test('a player whose microphone is denied can still ready after confirming', async ({ page, browser }) => {
   await page.addInitScript(() => {
-    navigator.mediaDevices.getUserMedia = async () => { throw new DOMException('Permission denied by test device', 'NotAllowedError'); };
+    navigator.mediaDevices.getUserMedia = async () => {
+      throw new DOMException('Permission denied by test device', 'NotAllowedError');
+    };
   });
   await enter(page);
   const secondContext = await browser.newContext({ permissions: ['microphone'], baseURL: new URL(page.url()).origin });
@@ -182,21 +214,34 @@ test('a player whose microphone is denied can still ready after confirming', asy
     await expect(page.getByTestId('start-game')).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId('start-game').click();
     await expect(second.getByTestId('game-canvas')).toHaveAttribute('data-world', 'challenge');
-  } finally { await secondContext.close(); }
+  } finally {
+    await secondContext.close();
+  }
 });
 
 test('touch: a tap walks the cat to the spot and a held drag steers like a joystick', async ({ browser, baseURL }) => {
-  const mobile = await browser.newContext({ baseURL, viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  const mobile = await browser.newContext({
+    baseURL,
+    viewport: { width: 844, height: 390 },
+    isMobile: true,
+    hasTouch: true,
+    permissions: ['microphone'],
+  });
   try {
     const phone = await peer(mobile);
     const canvas = phone.locator('canvas');
     await expect(canvas).toHaveAttribute('data-predicted', 'true');
-    const position = async () => ({ x: Number(await canvas.getAttribute('data-self-x')), y: Number(await canvas.getAttribute('data-self-y')) });
+    const position = async () => ({
+      x: Number(await canvas.getAttribute('data-self-x')),
+      y: Number(await canvas.getAttribute('data-self-y')),
+    });
     // Real touch points through CDP, so the browser produces genuine pointer events and capture.
     const cdp = await mobile.newCDPSession(phone);
-    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
     let before = await position();
-    await touch('touchStart', 422, 370); await touch('touchEnd', 422, 370);
+    await touch('touchStart', 422, 370);
+    await touch('touchEnd', 422, 370);
     await expect.poll(async () => before.y - (await position()).y, { timeout: 5000 }).toBeGreaterThan(120);
     before = await position();
     await touch('touchStart', 422, 195);
@@ -206,12 +251,24 @@ test('touch: a tap walks the cat to the spot and a held drag steers like a joyst
     await touch('touchEnd', 377, 195);
     expect(before.x - (await position()).x).toBeGreaterThan(100);
     await expect(phone.locator('.game-stick')).toHaveCount(0);
-  } finally { await mobile.close(); }
+  } finally {
+    await mobile.close();
+  }
 });
 
-test('touch in a challenge: arrow buttons and the centre stick move sideways, the jump button works alongside', async ({ page, browser, baseURL }) => {
+test('touch in a challenge: arrow buttons and the centre stick move sideways, the jump button works alongside', async ({
+  page,
+  browser,
+  baseURL,
+}) => {
   await enter(page);
-  const mobile = await browser.newContext({ baseURL, viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  const mobile = await browser.newContext({
+    baseURL,
+    viewport: { width: 844, height: 390 },
+    isMobile: true,
+    hasTouch: true,
+    permissions: ['microphone'],
+  });
   try {
     const phone = await peer(mobile);
     await page.getByTestId('create-party').click();
@@ -223,7 +280,7 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     await expect(page.getByTestId('cancel-ready')).toHaveCount(0);
     await page.getByTestId('mic-check').click();
     const toggle = phone.locator('.party-heading-toggle');
-    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
     await phone.getByTestId('mic-check').click();
     await expect(page.getByTestId('start-game')).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId('start-game').click();
@@ -234,22 +291,35 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     // Nothing may cover the pad: each control must be the element under its own centre.
     for (const id of ['pad-left', 'pad-stick', 'pad-right', 'pad-jump']) {
       const box = (await phone.getByTestId(id).boundingBox())!;
-      expect(await phone.evaluate(([x, y, testId]) => !!document.elementFromPoint(x, y)?.closest(`[data-testid="${testId}"]`), [box.x + box.width / 2, box.y + box.height / 2, id] as const)).toBe(true);
+      expect(
+        await phone.evaluate(
+          ([x, y, testId]) => !!document.elementFromPoint(x, y)?.closest(`[data-testid="${testId}"]`),
+          [box.x + box.width / 2, box.y + box.height / 2, id] as const,
+        ),
+      ).toBe(true);
     }
     const x = async () => Number(await canvas.getAttribute('data-self-x'));
     const cdp = await mobile.newCDPSession(phone);
-    const center = async (id: string) => { const box = (await phone.getByTestId(id).boundingBox())!; return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
-    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: { x: number; y: number; id: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+    const center = async (id: string) => {
+      const box = (await phone.getByTestId(id).boundingBox())!;
+      return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+    };
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: { x: number; y: number; id: number }[]) =>
+      cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
     // Holding the left arrow while tapping jump with a second finger.
-    const left = await center('pad-left'), jump = await center('pad-jump');
+    const left = await center('pad-left'),
+      jump = await center('pad-jump');
     let before = await x();
     await touch('touchStart', [{ ...left, id: 1 }]);
     await phone.waitForTimeout(300);
-    await touch('touchStart', [{ ...left, id: 1 }, { ...jump, id: 2 }]);
+    await touch('touchStart', [
+      { ...left, id: 1 },
+      { ...jump, id: 2 },
+    ]);
     await touch('touchEnd', [{ ...left, id: 1 }]);
     await phone.waitForTimeout(300);
     await touch('touchEnd', []);
-    expect(before - await x()).toBeGreaterThan(80);
+    expect(before - (await x())).toBeGreaterThan(80);
     // Dragging the centre stick to the right.
     await phone.waitForTimeout(800);
     const stick = await center('pad-stick');
@@ -258,7 +328,7 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     for (const dx of [10, 25, 40]) await touch('touchMove', [{ x: stick.x + dx, y: stick.y, id: 3 }]);
     await phone.waitForTimeout(600);
     await touch('touchEnd', []);
-    expect(await x() - before).toBeGreaterThan(80);
+    expect((await x()) - before).toBeGreaterThan(80);
     // Touching the scene itself no longer opens the floating joystick in a challenge.
     await touch('touchStart', [{ x: 422, y: 195, id: 4 }]);
     await touch('touchMove', [{ x: 377, y: 195, id: 4 }]);
@@ -266,7 +336,9 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     await touch('touchEnd', []);
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await phone.screenshot({ path: '.impeccable/review/mobile-challenge-pad.png' });
-  } finally { await mobile.close(); }
+  } finally {
+    await mobile.close();
+  }
 });
 
 test('an offline player stays in the lobby greyed out instead of disappearing', async ({ page, browser }) => {
