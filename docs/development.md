@@ -94,8 +94,11 @@ npx tsx scripts/capture-screenshots.ts
 ```sh
 npm run diagnostics -- --limit 20
 npm run diagnostics -- --source voice --user 用户ID
+npm run diagnostics -- --code 调试报告编号
 npm run diagnostics -- --since 2026-09-28 --source http
 ```
+
+玩家可在设置的“账号与密码”页，或麦克风出错时队伍面板里点“发送调试报告”，主动上报当前完整状态：麦克风权限、设备列表、音轨与 AudioContext 状态、电平采样、语音房间与 ICE 统计、队伍和连接状态。报告立即发送并返回 6 位编号，用 `--code` 定位，无需复现问题现场。
 
 查询命令按接收时间从新到旧输出原始记录。构建时生成唯一版本号，将 source map 留在 `.runtime/client-sourcemaps/<build>/`，不放入公开 `dist/`；查询会用事件版本对应的映射补充源码文件、行列。构建时删除早于 14 天（与诊断日志保留期一致）的旧映射目录；发布到其他机器时保留对应映射目录，不能用新构建映射解释旧日志。开发构建使用 `development` 标识。
 

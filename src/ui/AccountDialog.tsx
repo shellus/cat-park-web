@@ -1,11 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
-import { Check, Copy, Eye, EyeOff, Moon, Sun } from 'lucide-react';
+import { Bug, Check, Copy, Eye, EyeOff, Moon, Sun } from 'lucide-react';
 import type { Credentials, PlayerProfile } from '../../shared/protocol';
 import type { ParkConfig } from '../client/usePark';
 import { Avatar, IconButton, InlineError, Modal } from './primitives';
 
-interface Props { open: boolean; onOpenChange: (value: boolean) => void; tab?: 'appearance' | 'account'; profile: PlayerProfile; credentials: Credentials | null; username: string | null; setUsername: (value: string) => Promise<string>; config: ParkConfig; updateProfile: (profile: Partial<PlayerProfile>) => Promise<PlayerProfile>; changePassword: (current: string, next: string) => Promise<void>; dark: boolean; onTheme: () => void }
-export function AccountDialog({ open, onOpenChange, tab: initialTab = 'appearance', profile, credentials, username, setUsername, config, updateProfile, changePassword, dark, onTheme }: Props) {
+interface Props { open: boolean; onOpenChange: (value: boolean) => void; tab?: 'appearance' | 'account'; profile: PlayerProfile; credentials: Credentials | null; username: string | null; setUsername: (value: string) => Promise<string>; config: ParkConfig; updateProfile: (profile: Partial<PlayerProfile>) => Promise<PlayerProfile>; changePassword: (current: string, next: string) => Promise<void>; dark: boolean; onTheme: () => void; debugReport: () => Promise<string> }
+export function AccountDialog({ open, onOpenChange, tab: initialTab = 'appearance', profile, credentials, username, setUsername, config, updateProfile, changePassword, dark, onTheme, debugReport }: Props) {
   const [tab, setTab] = useState<'appearance' | 'account'>('appearance');
   const [draft, setDraft] = useState(profile);
   const [error, setError] = useState(''); const [success, setSuccess] = useState(''); const [busy, setBusy] = useState(false);
@@ -24,6 +24,10 @@ export function AccountDialog({ open, onOpenChange, tab: initialTab = 'appearanc
     event.preventDefault(); setBusy(true); setError(''); setSuccess('');
     try { await changePassword(currentPassword, newPassword); setCurrentPassword(newPassword); setNewPassword(''); setSuccess('密码已修改，新密码也已保存在这个浏览器。'); } catch (error) { setError(error instanceof Error ? error.message : '修改失败，请重试'); } finally { setBusy(false); }
   }
+  async function sendReport() {
+    setBusy(true); setError(''); setSuccess('');
+    try { const code = await debugReport(); setSuccess(`调试报告已发送，编号 ${code}。把编号告诉维护者即可。`); } catch (error) { setError(error instanceof Error ? error.message : '发送失败，请重试'); } finally { setBusy(false); }
+  }
   async function copyAccount() { try { await navigator.clipboard.writeText(`${username ? `用户名：${username}\n` : ''}用户 ID：${profile.id}\n密码：${credentials?.password || ''}`); setSuccess('账号和密码已复制。'); } catch { setError('无法复制，请手动选择账号和密码保存。'); } }
   return <Modal open={open} onOpenChange={onOpenChange} title="我的小猫" description="换个样子，继续和朋友一起玩。">
     <div className="tabs" role="tablist" aria-label="个人设置"><button role="tab" aria-selected={tab === 'appearance'} onClick={() => setTab('appearance')}>昵称与外观</button><button role="tab" aria-selected={tab === 'account'} onClick={() => setTab('account')}>账号与密码</button><IconButton icon={dark ? Sun : Moon} label={dark ? '切换浅色界面' : '切换深色界面'} onClick={onTheme} /></div>
@@ -38,6 +42,7 @@ export function AccountDialog({ open, onOpenChange, tab: initialTab = 'appearanc
       <label className="field">用户 ID<input readOnly value={profile.id} onFocus={event => event.target.select()} /></label>
       <label className="field">浏览器保存的密码<div className="input-action"><input readOnly type={showPassword ? 'text' : 'password'} value={credentials?.password || ''} onFocus={event => event.target.select()} /><IconButton icon={showPassword ? EyeOff : Eye} label={showPassword ? '隐藏密码' : '显示密码'} onClick={() => setShowPassword(value => !value)} /></div></label>
       <button className="button subtle full-width" onClick={() => void copyAccount()}><Copy size={16} />复制账号和密码</button>
+      <button className="button subtle full-width debug-report" data-testid="debug-report" disabled={busy} onClick={() => void sendReport()}><Bug size={16} />遇到问题？发送调试报告</button>
       <form className="password-form" onSubmit={savePassword}><h3>{username ? '修改密码' : '设置好记的密码'}</h3><label className="field">当前密码<input data-testid="password-current" type="password" autoComplete="current-password" required value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} /></label><label className="field">新密码<input data-testid="password-new" type="password" autoComplete="new-password" required minLength={8} maxLength={128} placeholder="至少 8 个字符" value={newPassword} onChange={event => setNewPassword(event.target.value)} /></label><button data-testid="password-submit" className="button primary full-width" disabled={busy || newPassword.length < 8}>{busy ? '正在修改…' : '修改并保存新密码'}</button></form>
     </>}
     <InlineError message={error} />{success && <p className="inline-success" role="status"><Check size={16} />{success}</p>}

@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Check, ChevronDown, ChevronUp, Copy, Crown, Flag, LogOut, Mic, MicOff, Play, RotateCcw, UserPlus, Volume2, Waves, X } from 'lucide-react';
+import { Bug, Check, ChevronDown, ChevronUp, Copy, Crown, Flag, LogOut, Mic, MicOff, Play, RotateCcw, UserPlus, Volume2, Waves, X } from 'lucide-react';
 import type { CharacterOption, ClientMessage, MicStatus, Party } from '../../shared/protocol';
 import type { VoiceState } from '../client/useVoice';
 import { Avatar, IconButton, Modal } from './primitives';
 
 const labels: Record<MicStatus, string> = { unchecked: '尚未检查麦克风', checking: '正在检查麦克风', denied: '麦克风权限未开启', missing: '没有可用麦克风', silent: '尚未检测到声音', connecting: '语音连接中', disconnected: '语音已断开', muted: '麦克风已静音', ok: '语音正常', error: '音频故障' };
-interface Props { party: Party | null; selfId: string; characters: CharacterOption[]; connected: boolean; minPartySize: number; send: (message: ClientMessage) => boolean; voice: VoiceState & { enable: (deviceId?: string) => void; toggleMute: () => void }; onInvite: () => void; notify: (message: string) => void; onDialog: (value: boolean) => void }
-export function PartyPanel({ party, selfId, characters, connected, minPartySize, send, voice, onInvite, notify, onDialog }: Props) {
+interface Props { party: Party | null; selfId: string; characters: CharacterOption[]; connected: boolean; minPartySize: number; send: (message: ClientMessage) => boolean; voice: VoiceState & { enable: (deviceId?: string) => void; toggleMute: () => void }; onInvite: () => void; notify: (message: string) => void; onDialog: (value: boolean) => void; debugReport: () => Promise<string> }
+export function PartyPanel({ debugReport, party, selfId, characters, connected, minPartySize, send, voice, onInvite, notify, onDialog }: Props) {
   const [expanded, setExpanded] = useState(false); const [confirmLeave, setConfirmLeave] = useState(false); const [confirmMicless, setConfirmMicless] = useState(false);
   const leader = party?.leaderId === selfId; const me = party?.members.find(member => member.id === selfId);
   const readyCount = party?.members.filter(member => member.ready).length || 0;
@@ -29,6 +29,7 @@ export function PartyPanel({ party, selfId, characters, connected, minPartySize,
       </div>
       {!live && <p className="ready-note">{me?.micless ? '已不开麦准备。麦克风检查通过后会自动改为语音准备。' : me?.autoReady ? '检测到声音后会自动准备；安静时仍保持准备。' : '已关闭自动准备。检查通过后，点击准备即可。'}</p>}
       {!live && !me?.ready && voice.report.status !== 'ok' && voice.report.status !== 'checking' && <button className="text-button micless-entry" data-testid="ready-without-mic" disabled={!connected} onClick={() => micless(true)}><MicOff size={14} />麦克风用不了？不开麦准备</button>}
+      {!live && ['denied', 'missing', 'error', 'disconnected'].includes(voice.report.status) && <button className="text-button micless-entry" data-testid="voice-debug-report" onClick={() => void debugReport().then(code => notify(`调试报告已发送，编号 ${code}，把编号告诉维护者即可。`), error => notify(error instanceof Error ? error.message : '调试报告发送失败'))}><Bug size={14} />发送调试报告</button>}
       <div className="party-secondary"><button className="text-button" onClick={() => void share()}><Copy size={14} />分享邀请</button>{leader && !live && <button className="text-button" onClick={onInvite}><UserPlus size={14} />邀请玩家</button>}<button className="text-button muted" onClick={() => confirm(true)}>{leader ? <X size={14} /> : <LogOut size={14} />}{leader ? '解散' : '退出'}</button></div></div>
       <div className="party-actions">{!live ? <>
         <button className={`button ${me?.ready ? 'subtle' : 'secondary'}`} data-testid={me?.ready || me?.autoReady ? 'cancel-ready' : 'ready'} disabled={!connected || (!me?.ready && !me?.autoReady && voice.report.status !== 'ok')} onClick={() => send({ type: 'party.ready', ready: !(me?.ready || me?.autoReady) })}>{me?.ready ? <Check size={17} /> : <Mic size={17} />}{me?.ready ? '取消准备' : me?.autoReady ? '取消自动准备' : '准备'}</button>

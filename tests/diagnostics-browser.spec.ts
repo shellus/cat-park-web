@@ -51,3 +51,13 @@ test('caught voice PeerConnection failures include the attempt, endpoint and con
   expect(report.breadcrumbs.some((item: { source: string }) => item.source.startsWith('voice.'))).toBe(true);
   expect(JSON.stringify(report)).not.toContain('access_token');
 });
+
+test('a player can send a debug report and the code finds it in the log', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByTestId('game-canvas')).toHaveAttribute('data-world', 'lobby');
+  await page.getByTestId('settings').click();
+  await page.getByRole('tab', { name: '账号与密码' }).click();
+  await page.getByTestId('debug-report').click();
+  const text = await page.getByText(/调试报告已发送，编号 [0-9A-F]{6}/).innerText({ timeout: 15_000 });
+  expect(text).toMatch(/编号 [0-9A-F]{6}/);
+});

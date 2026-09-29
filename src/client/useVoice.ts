@@ -53,6 +53,19 @@ class TeamVoice {
       this.changed({ report, level: this.level, playbackBlocked: this.playbackBlocked || (!!this.context && this.context.state !== 'running'), devices: this.devices, deviceId: this.deviceId });
     }
   }
+  /** Everything needed to diagnose a device remotely; attached to a user-triggered debug report. */
+  async debugSnapshot() {
+    let permission: string | undefined;
+    try { permission = (await navigator.permissions?.query({ name: 'microphone' as PermissionName }))?.state; } catch { /* Not supported on every browser. */ }
+    const track = this.track?.mediaStreamTrack;
+    return { permission, secureContext: window.isSecureContext, mediaDevices: Boolean(navigator.mediaDevices?.getUserMedia),
+      devices: this.devices.map(device => ({ deviceId: device.deviceId, label: device.label, groupId: device.groupId })), deviceId: this.deviceId,
+      track: track && { readyState: track.readyState, enabled: track.enabled, muted: track.muted, settings: track.getSettings() },
+      audioContext: this.context?.state, level: this.level, samples: this.samples, signal: this.signal, published: this.published,
+      busy: this.busy, connecting: this.connecting, fault: this.fault, playbackBlocked: this.playbackBlocked,
+      room: this.room && { state: this.room.state, name: this.room.name, canPlaybackAudio: this.room.canPlaybackAudio, remoteParticipants: this.room.numParticipants },
+      transport: this.diagnostics?.snapshot() };
+  }
   unavailable() { this.fault = { status: 'error', message: '队伍语音暂时不可用，暂不能准备' }; this.emit(); }
   private async enumerate() {
     try { this.devices = (await navigator.mediaDevices.enumerateDevices()).filter(d => d.kind === 'audioinput'); this.lastReport = ''; this.emit(); } catch { /* Permissions may hide device labels. */ }
@@ -197,5 +210,6 @@ export function useVoice(partyId: string | null, available: boolean, grant: Voic
     void controller.current!.enable(deviceId);
     send({ type: 'voice.join' });
   }, [send, available]);
-  return { ...state, enable, toggleMute: () => void controller.current!.toggleMute() };
+  const debugSnapshot = useCallback(() => controller.current!.debugSnapshot(), []);
+  return { ...state, enable, debugSnapshot, toggleMute: () => void controller.current!.toggleMute() };
 }

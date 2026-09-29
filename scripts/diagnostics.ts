@@ -8,7 +8,7 @@ import type { StoredDiagnostic } from '../shared/diagnostics.ts';
 const args = process.argv.slice(2);
 const option = (name: string) => { const index = args.indexOf(name); return index < 0 ? undefined : args[index + 1]; };
 if (args.includes('--help')) {
-  console.log('npm run diagnostics -- [--user ID] [--source voice] [--since ISO_DATE] [--limit 20] [--directory PATH]');
+  console.log('npm run diagnostics -- [--user ID] [--source voice] [--since ISO_DATE] [--code 调试报告编号] [--limit 20] [--directory PATH]');
   process.exit(0);
 }
 const directory = option('--directory') || diagnosticDirectory(loadConfig().database.path);
@@ -24,6 +24,7 @@ for (const name of files) {
     if (option('--user') && event.verifiedUserId !== option('--user') && event.context.userId !== option('--user')) continue;
     if (option('--source') && !event.source.includes(option('--source')!)) continue;
     if (option('--since') && event.receivedAt < option('--since')!) continue;
+    if (option('--code') && (event.details as { data?: { code?: string } })?.data?.code !== option('--code')!.toUpperCase()) continue;
     events.push(event); if (events.length >= limit) break;
   }
   if (events.length >= limit) break;

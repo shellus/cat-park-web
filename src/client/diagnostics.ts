@@ -73,6 +73,15 @@ export function reportClientError(source: string, error: unknown, details: unkno
     return event.id;
   } catch { return undefined; }
 }
+/** User-triggered report with the current state; returns a short code the player can pass on. */
+export async function sendDebugReport(details: unknown): Promise<string> {
+  const code = crypto.randomUUID().slice(0, 6).toUpperCase();
+  duplicates.delete(`debug.report:${code}:`);
+  reportClientError('debug.report', `用户提交的调试报告 ${code}`, { code, ...(details as object) });
+  for (let i = 0; i < 20 && queue.some(item => item.source === 'debug.report'); i++) { await flushDiagnostics(); await new Promise(resolve => setTimeout(resolve, 300)); }
+  if (queue.some(item => item.source === 'debug.report')) throw new Error('报告暂未送达，联网后会自动补传');
+  return code;
+}
 export async function flushDiagnostics() {
   if (flushing || !queue.length || !navigator.onLine) return;
   flushing = true;
