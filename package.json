@@ -15,6 +15,8 @@
     "build": "npm run assets && tsc --noEmit && vite build",
     "prod": "tsx server/index.ts --production",
     "typecheck": "tsc --noEmit",
+    "format": "tsx scripts/format.ts --write",
+    "format:check": "tsx scripts/format.ts --check",
     "test": "tsx --test tests/*.test.ts",
     "test:browser": "playwright test",
     "diagnostics": "tsx scripts/diagnostics.ts"
@@ -48,6 +50,7 @@
     "@types/react-dom": "^19.2.0",
     "@types/subset-font": "^2.3.0",
     "@vitejs/plugin-react": "^5.0.4",
+    "prettier": "3.9.9",
     "sharp": "^0.35.5",
     "subset-font": "^2.9.0",
     "typescript": "^5.9.3",
