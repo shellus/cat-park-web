@@ -193,6 +193,66 @@ test('touch: a tap walks the cat to the spot and a held drag steers like a joyst
   } finally { await mobile.close(); }
 });
 
+test('touch in a challenge: arrow buttons and the centre stick move sideways, the jump button works alongside', async ({ page, browser, baseURL }) => {
+  await enter(page);
+  const mobile = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  try {
+    const phone = await peer(mobile);
+    await page.getByTestId('create-party').click();
+    await page.getByRole('button', { name: /在线玩家/ }).click();
+    await page.getByTestId(`invite-player-${(await credentials(phone)).userId}`).click();
+    await phone.locator('[data-testid^="accept-invite-"]').first().click();
+    // The leader has no ready button of its own; a verified microphone is enough.
+    await expect(page.getByTestId('ready')).toHaveCount(0);
+    await expect(page.getByTestId('cancel-ready')).toHaveCount(0);
+    await page.getByTestId('mic-check').click();
+    const toggle = phone.locator('.party-heading-toggle');
+    if (await toggle.getAttribute('aria-expanded') === 'false') await toggle.click();
+    await phone.getByTestId('mic-check').click();
+    await expect(page.getByTestId('start-game')).toBeEnabled({ timeout: 30_000 });
+    await page.getByTestId('start-game').click();
+    await expect(phone.getByTestId('game-canvas')).toHaveAttribute('data-world', 'challenge');
+    await toggle.click();
+    const canvas = phone.locator('canvas');
+    await expect(canvas).toHaveAttribute('data-predicted', 'true');
+    // Nothing may cover the pad: each control must be the element under its own centre.
+    for (const id of ['pad-left', 'pad-stick', 'pad-right', 'pad-jump']) {
+      const box = (await phone.getByTestId(id).boundingBox())!;
+      expect(await phone.evaluate(([x, y, testId]) => !!document.elementFromPoint(x, y)?.closest(`[data-testid="${testId}"]`), [box.x + box.width / 2, box.y + box.height / 2, id] as const)).toBe(true);
+    }
+    const x = async () => Number(await canvas.getAttribute('data-self-x'));
+    const cdp = await mobile.newCDPSession(phone);
+    const center = async (id: string) => { const box = (await phone.getByTestId(id).boundingBox())!; return { x: box.x + box.width / 2, y: box.y + box.height / 2 }; };
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: { x: number; y: number; id: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+    // Holding the left arrow while tapping jump with a second finger.
+    const left = await center('pad-left'), jump = await center('pad-jump');
+    let before = await x();
+    await touch('touchStart', [{ ...left, id: 1 }]);
+    await phone.waitForTimeout(300);
+    await touch('touchStart', [{ ...left, id: 1 }, { ...jump, id: 2 }]);
+    await touch('touchEnd', [{ ...left, id: 1 }]);
+    await phone.waitForTimeout(300);
+    await touch('touchEnd', []);
+    expect(before - await x()).toBeGreaterThan(80);
+    // Dragging the centre stick to the right.
+    await phone.waitForTimeout(800);
+    const stick = await center('pad-stick');
+    before = await x();
+    await touch('touchStart', [{ ...stick, id: 3 }]);
+    for (const dx of [10, 25, 40]) await touch('touchMove', [{ x: stick.x + dx, y: stick.y, id: 3 }]);
+    await phone.waitForTimeout(600);
+    await touch('touchEnd', []);
+    expect(await x() - before).toBeGreaterThan(80);
+    // Touching the scene itself no longer opens the floating joystick in a challenge.
+    await touch('touchStart', [{ x: 195, y: 420, id: 4 }]);
+    await touch('touchMove', [{ x: 150, y: 420, id: 4 }]);
+    await expect(phone.locator('.game-stick')).toHaveCount(0);
+    await touch('touchEnd', []);
+    expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await phone.screenshot({ path: '.impeccable/review/mobile-challenge-pad.png' });
+  } finally { await mobile.close(); }
+});
+
 test('an offline player stays in the lobby greyed out instead of disappearing', async ({ page, browser }) => {
   await enter(page);
   const otherContext = await browser.newContext({ baseURL: new URL(page.url()).origin });
