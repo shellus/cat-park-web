@@ -28,6 +28,17 @@ async function download(url: string): Promise<Buffer> {
   return Buffer.from(await response.arrayBuffer());
 }
 
+/**
+ * A tunnel delivers public media to 127.0.0.1, so the UDP mux must listen on loopback only.
+ * With several interfaces the mux answers from whichever socket the ICE check was registered
+ * on, and a check that arrived on loopback is dropped. Loopback-only is kept for a public node
+ * IP; a LAN/local node IP still listens on all interfaces for direct connections.
+ */
+function loopbackMedia(nodeIp: string) {
+  const privateAddress = /^(127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(nodeIp);
+  if (privateAddress) return {};
+  return { enable_loopback_candidate: true, interfaces: { includes: [process.platform === 'win32' ? 'Loopback Pseudo-Interface 1' : 'lo'] } };
+}
 export async function setupLocal(): Promise<{ localVoice: boolean }> {
   await mkdir(runtime, { recursive: true });
   const configPath = path.join(root, 'config.yaml');
@@ -51,9 +62,7 @@ export async function setupLocal(): Promise<{ localVoice: boolean }> {
   await writeFile(path.join(runtime, 'livekit.yaml'), YAML.stringify({
     port: Number(apiUrl.port || 7880),
     bind_addresses: ['127.0.0.1'],
-    // Tunnels forward public media to 127.0.0.1; LiveKit skips loopback for UDP unless enabled,
-    // so without this the UDP mapping delivers into nothing and remote clients fail ICE.
-    rtc: { tcp_port: local.tcpPort, udp_port: local.udpPort, use_external_ip: false, node_ip: local.nodeIp, enable_loopback_candidate: true },
+    rtc: { tcp_port: local.tcpPort, udp_port: local.udpPort, use_external_ip: false, node_ip: local.nodeIp, ...loopbackMedia(local.nodeIp) },
     keys: { [voice.apiKey]: voice.apiSecret },
     logging: { level: 'warn' },
   }), { mode: 0o600 });
