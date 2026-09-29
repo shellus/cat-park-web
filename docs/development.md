@@ -66,7 +66,7 @@ Linux 开发可用 `./tmux-dev-manager.sh start|stop|restart|status|attach|healt
 
 ## 行为与验证边界
 
-手机只支持横屏：触屏设备竖屏时由全屏遮罩提示旋转；点全屏按钮进入全屏后尝试 `screen.orientation.lock('landscape')`，安卓 Chrome/Edge 可锁定，iOS Safari 不支持网页全屏与方向锁定，只能靠遮罩提示或添加到主屏幕后打开。浏览器标签页即使横屏也保留地址栏和状态栏，竖屏遮罩同时建议安装：Chromium 触发 `beforeinstallprompt` 时显示“安装为应用”按钮，iOS 提示经分享菜单添加到主屏幕，其余浏览器提示从菜单添加；已从桌面打开（`display-mode` 为 fullscreen/standalone）时不再提示。
+手机只支持横屏：触屏设备竖屏时由全屏遮罩提示旋转；点全屏按钮进入全屏后尝试 `screen.orientation.lock('landscape')`，安卓 Chrome/Edge 可锁定，iOS Safari 不支持网页全屏与方向锁定，只能靠遮罩提示或添加到主屏幕后打开。浏览器标签页即使横屏也保留地址栏和状态栏，竖屏遮罩同时建议安装：Chromium 触发 `beforeinstallprompt` 时显示“安装为应用”按钮，iOS 提示经分享菜单添加到主屏幕，其余浏览器提示从菜单添加；横屏大厅在浏览器标签页中另有一条可关闭的安装提示，关闭后记入 `localStorage` 不再出现。已从桌面打开（`display-mode` 为 fullscreen/standalone 或 iOS `navigator.standalone`）可精确判断，不显示任何提示；在标签页中无法通用地判断是否已安装，只有 Chromium 经 manifest `related_applications` 自引用与 `getInstalledRelatedApps()` 可查到（安卓 Chrome 84+、桌面 Chrome/Edge 140+），查到时改为提示从桌面图标打开。
 
 临时物理、碰撞和通关行为见 [游戏行为说明](./game-behavior.md)。素材齐全不代表玩法逻辑已全部校准。语音、移动端后台、蓝牙切换、蜂窝网络和公网部署应按实际设备与网络单独验收。
 

@@ -128,6 +128,12 @@ test('desktop and mobile layouts render the original scene without page overflow
     await phone.screenshot({ path: '.impeccable/review/mobile-portrait.png' });
     await phone.setViewportSize({ width: 844, height: 390 });
     await expect(phone.getByTestId('rotate-hint')).toBeHidden();
+    // Landscape in a browser tab still suggests installing, once, until dismissed.
+    await expect(phone.getByTestId('install-tip')).toBeVisible();
+    await phone.getByTestId('install-tip').getByRole('button', { name: '不再提示' }).click();
+    await phone.reload();
+    await expect(phone.getByTestId('game-canvas')).toHaveAttribute('data-world', 'lobby');
+    await expect(phone.getByTestId('install-tip')).toHaveCount(0);
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await phone.screenshot({ path: '.impeccable/review/mobile-landscape.png', fullPage: true });
   } finally { await mobile.close(); }

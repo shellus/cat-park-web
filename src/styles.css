@@ -15,7 +15,10 @@
 /* Touch devices play landscape only; portrait is covered instead of laid out. */
 .rotate-hint{display:none;position:fixed;inset:0;z-index:100;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;text-align:center;background:var(--world);color:var(--ink)}.rotate-hint svg{color:var(--green);animation:rotate-hint 2.4s ease-in-out infinite}.rotate-hint strong{font-size:18px}.rotate-hint span{color:var(--muted);font-size:13px}.install-hint{display:flex;flex-direction:column;align-items:center;gap:10px;margin-top:14px;padding:16px 18px;max-width:320px;border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}.install-hint p{margin:0;font-size:13px;line-height:1.6}.install-hint small{color:var(--muted);font-size:12px;line-height:1.5}
 @keyframes rotate-hint{0%,25%{transform:rotate(0)}55%,100%{transform:rotate(90deg)}}
+/* Lobby only, so it never sits over the challenge touch pad; the chat peek owns the bottom-left corner. */
+.install-tip{display:none;position:absolute;left:50%;bottom:max(64px,calc(env(safe-area-inset-bottom) + 50px));transform:translateX(-50%);align-items:center;gap:8px;width:max-content;max-width:min(460px,calc(100% - 380px));padding:6px 6px 6px 12px;border-radius:12px;background:var(--surface);box-shadow:var(--shadow);font-size:11px;line-height:1.5;white-space:nowrap;z-index:14}.install-tip>svg{flex-shrink:0;color:var(--green)}.install-tip .button{min-height:32px;padding:6px 10px;font-size:11px}
 @media(pointer:coarse) and (orientation:portrait){.rotate-hint{display:flex}}
+@media(pointer:coarse) and (orientation:landscape){.install-tip{display:flex}}
 /* The challenge touch pad owns the bottom corners; keep the chat peek above it. */
 @media(pointer:coarse){.in-challenge .social-panel:not(.is-open){bottom:calc(max(18px,env(safe-area-inset-bottom)) + 84px)}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
