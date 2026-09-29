@@ -1,0 +1,3 @@
+# Bulk formatting commits; git blame skips them with blame.ignoreRevsFile
+# style: 全量 Prettier 格式化
+f96eef9ee0eae81dc68c6a127ea34a6c90160dd3

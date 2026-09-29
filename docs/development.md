@@ -52,11 +52,14 @@ LiveKit 未配置或无法连接时，用户仍可进大厅、聊天和组队，
 ## 构建与验证
 
 ```sh
+npm run format:check
 npm run typecheck
 npm test
 npm run build
 npm run prod
 ```
+
+代码格式由 Prettier 统一，提交前运行 `npm run format`；它只处理 Git 跟踪的文件，Markdown 段落为手工换行不参与格式化。全量格式化提交记录在 `.git-blame-ignore-revs`，执行 `git config blame.ignoreRevsFile .git-blame-ignore-revs` 后 `git blame` 会跳过它。
 
 生产运行需要独立保证 LiveKit 可达。常驻物理模拟、SQLite 和 WebRTC 媒体服务采用自托管模型；前端可作为普通静态产物分发，但当前不引入 Cloudflare 运行时依赖。
 
