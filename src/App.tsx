@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react
 import {
   ArrowRight,
   Check,
+  Flag,
   KeyRound,
   LoaderCircle,
   Maximize,
@@ -39,6 +40,12 @@ export default function App() {
   const [socialOpen, setSocialOpen] = useState(() => matchMedia('(min-width: 701px) and (pointer: fine)').matches);
   const [socialTab, setSocialTab] = useState<'chat' | 'players'>('chat');
   const [focused, setFocused] = useState(false);
+  // Touch screens keep the challenge clear; the party panel (return, restart, mute) opens from the header.
+  const [partyShown, setPartyShown] = useState(false);
+  const inChallenge = park.world?.kind === 'challenge';
+  useEffect(() => {
+    if (!inChallenge) setPartyShown(false);
+  }, [inChallenge]);
   const [inviteCode, setInviteCode] = useState(() => new URL(location.href).searchParams.get('invite'));
   const [invitePending, setInvitePending] = useState(false);
   const [dark, setDark] = useState(() => {
@@ -188,7 +195,9 @@ export default function App() {
       .catch(() => undefined);
   }
   return (
-    <main className={`park-app ${park.world?.kind === 'challenge' ? 'in-challenge' : ''}`}>
+    <main
+      className={`park-app ${inChallenge ? 'in-challenge' : ''} ${partyShown || party?.phase === 'won' ? 'party-shown' : ''}`}
+    >
       <div className="game-surface">
         <GameCanvas
           world={park.world}
@@ -204,7 +213,7 @@ export default function App() {
           <Trees size={23} strokeWidth={1.6} />
           <div>
             <h1>萌猫公园</h1>
-            <span>{park.world?.kind === 'challenge' ? '绳子挑战 · 荡秋千' : '散散步，交个朋友'}</span>
+            <span>{inChallenge ? '绳子挑战 · 荡秋千' : '散散步，交个朋友'}</span>
           </div>
         </div>
         {self && (
@@ -238,6 +247,17 @@ export default function App() {
               <span>{onlineCount}</span>
               <i />
             </button>
+            {inChallenge && party && (
+              <button
+                className="online-button party-toggle"
+                data-testid="party-toggle"
+                aria-label={partyShown ? '收起队伍面板' : '打开队伍面板'}
+                aria-pressed={partyShown}
+                onClick={() => setPartyShown(value => !value)}
+              >
+                <Flag size={17} />
+              </button>
+            )}
             {canFullscreen && (
               <button
                 className="online-button"

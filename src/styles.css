@@ -1267,101 +1267,6 @@ legend {
     max-height: calc(100dvh - 223px);
     overflow: auto;
   }
-  .party-empty {
-    padding: 12px;
-  }
-  .party-empty > div {
-    padding-left: 27px;
-  }
-  .party-empty h2 {
-    font-size: 13px;
-  }
-  .party-empty p {
-    font-size: 10px;
-    margin-top: 2px;
-  }
-  .challenge-mark {
-    width: 23px;
-    height: 23px;
-    border-radius: 7px;
-  }
-  .challenge-mark svg {
-    width: 16px;
-  }
-  .party-empty > .button {
-    margin-top: 10px;
-    min-height: 35px;
-    font-size: 12px;
-    padding: 8px;
-  }
-  .party-heading {
-    padding: 3px 7px;
-  }
-  .party-heading-toggle {
-    padding: 7px 3px;
-    gap: 7px;
-  }
-  .party-heading-toggle strong {
-    font-size: 12px;
-  }
-  .party-heading-toggle small {
-    font-size: 10px;
-    margin-top: 3px;
-  }
-  .party-heading-toggle > svg {
-    display: block;
-  }
-  .party-panel:not(.expanded) .party-details {
-    display: none;
-  }
-  .party-details {
-    padding: 0 11px;
-  }
-  .party-actions {
-    padding: 5px 10px 10px;
-    gap: 6px;
-  }
-  .party-actions .button {
-    font-size: 11px;
-    min-height: 33px;
-    padding: 8px 10px;
-  }
-  .party-members {
-    max-height: 170px;
-  }
-  .member-row .avatar {
-    width: 28px;
-    height: 31px;
-    border-radius: 7px;
-  }
-  .player-identity strong {
-    font-size: 11px;
-  }
-  .player-identity > span {
-    font-size: 9px;
-  }
-  .member-row {
-    gap: 7px;
-    padding: 7px 0;
-  }
-  .ready-indicator {
-    font-size: 9px;
-  }
-  .voice-controls {
-    padding: 8px 0;
-  }
-  .mic-message {
-    font-size: 10px;
-  }
-  .ready-note {
-    font-size: 9px;
-  }
-  .party-secondary {
-    gap: 5px;
-  }
-  .party-secondary .text-button {
-    font-size: 10px;
-  }
   .social-panel {
     left: 12px;
     bottom: calc(144px + env(safe-area-inset-bottom));
@@ -1478,19 +1383,112 @@ legend {
     height: 34px;
   }
 }
+/* Portrait narrow windows and landscape phones share the compact party panel. */
+@media (max-width: 700px), (max-height: 520px) {
+  .party-panel {
+    right: max(12px, env(safe-area-inset-right));
+    width: 240px;
+  }
+  .party-empty {
+    padding: 12px;
+  }
+  .party-empty > div {
+    padding-left: 27px;
+  }
+  .party-empty h2 {
+    font-size: 13px;
+  }
+  .party-empty p {
+    font-size: 10px;
+    margin-top: 2px;
+  }
+  .challenge-mark {
+    width: 23px;
+    height: 23px;
+    border-radius: 7px;
+  }
+  .challenge-mark svg {
+    width: 16px;
+  }
+  .party-empty > .button {
+    margin-top: 10px;
+    min-height: 35px;
+    font-size: 12px;
+    padding: 8px;
+  }
+  .party-heading {
+    padding: 3px 7px;
+  }
+  .party-heading-toggle {
+    padding: 7px 3px;
+    gap: 7px;
+  }
+  .party-heading-toggle strong {
+    font-size: 12px;
+  }
+  .party-heading-toggle small {
+    font-size: 10px;
+    margin-top: 3px;
+  }
+  .party-heading-toggle > svg {
+    display: block;
+  }
+  .party-panel:not(.expanded) .party-details {
+    display: none;
+  }
+  .party-details {
+    padding: 0 11px;
+  }
+  .party-actions {
+    padding: 5px 10px 10px;
+    gap: 6px;
+  }
+  .party-actions .button {
+    font-size: 11px;
+    min-height: 33px;
+    padding: 8px 10px;
+  }
+  .party-members {
+    max-height: 170px;
+  }
+  .member-row .avatar {
+    width: 28px;
+    height: 31px;
+    border-radius: 7px;
+  }
+  .player-identity strong {
+    font-size: 11px;
+  }
+  .player-identity > span {
+    font-size: 9px;
+  }
+  .member-row {
+    gap: 7px;
+    padding: 7px 0;
+  }
+  .ready-indicator {
+    font-size: 9px;
+  }
+  .voice-controls {
+    padding: 8px 0;
+  }
+  .mic-message {
+    font-size: 10px;
+  }
+  .ready-note {
+    font-size: 9px;
+  }
+  .party-secondary {
+    gap: 5px;
+  }
+  .party-secondary .text-button {
+    font-size: 10px;
+  }
+}
 @media (max-height: 520px) and (min-width: 701px) {
   .party-panel {
     max-height: calc(100dvh - 36px);
     overflow: auto;
-  }
-  .party-details {
-    display: none;
-  }
-  .party-panel.expanded .party-details {
-    display: block;
-  }
-  .party-heading-toggle > svg {
-    display: block;
   }
   .social-panel.is-open .chat-messages {
     height: 135px;
@@ -1608,10 +1606,21 @@ legend {
     bottom: max(112px, calc(env(safe-area-inset-bottom) + 98px));
   }
 }
-/* The challenge touch pad owns the bottom corners; keep the chat peek above it. */
+/* Touch challenges leave the stage to the cats and the pad: the party panel opens from the header, chat from the player list. */
+.party-toggle {
+  display: none;
+}
 @media (pointer: coarse) {
-  .in-challenge .social-panel:not(.is-open) {
-    bottom: calc(max(18px, env(safe-area-inset-bottom)) + 84px);
+  .in-challenge .party-toggle {
+    display: flex;
+  }
+  .in-challenge .party-toggle[aria-pressed='true'] {
+    color: var(--green);
+  }
+  .in-challenge:not(.party-shown) .party-panel,
+  .in-challenge .social-panel:not(.is-open),
+  .in-challenge .account-prompt {
+    display: none;
   }
 }
 @media (prefers-reduced-motion: reduce) {

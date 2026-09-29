@@ -285,7 +285,13 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     await expect(page.getByTestId('start-game')).toBeEnabled({ timeout: 30_000 });
     await page.getByTestId('start-game').click();
     await expect(phone.getByTestId('game-canvas')).toHaveAttribute('data-world', 'challenge');
-    await toggle.click();
+    // The party panel and chat peek stay out of the way until the header toggle asks for them.
+    await expect(phone.locator('.party-panel')).toBeHidden();
+    await expect(phone.getByRole('button', { name: /聊两句/ })).toBeHidden();
+    await phone.getByTestId('party-toggle').click();
+    await expect(phone.getByRole('button', { name: '回到大厅' })).toBeVisible();
+    await phone.getByTestId('party-toggle').click();
+    await expect(phone.locator('.party-panel')).toBeHidden();
     const canvas = phone.locator('canvas');
     await expect(canvas).toHaveAttribute('data-predicted', 'true');
     // Nothing may cover the pad: each control must be the element under its own centre.
