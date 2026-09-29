@@ -42,6 +42,7 @@ test('two independent players: public chat, real SFU audio, auto-ready cancellat
     await page.getByTestId('create-party').click();
     await page.getByRole('button', { name: /在线玩家/ }).click();
     await page.getByTestId(`invite-player-${other.userId}`).click();
+    await expect(page.getByTestId(`invited-player-${other.userId}`)).toBeVisible();
     await second.locator('[data-testid^="accept-invite-"]').first().click();
     await page.getByTestId('mic-check').click();
     await second.getByTestId('mic-check').click();

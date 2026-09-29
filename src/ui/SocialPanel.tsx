@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { ArrowUp, ChevronDown, MessageCircle, UserPlus, Users } from 'lucide-react';
+import { ArrowUp, Check, ChevronDown, MessageCircle, UserPlus, Users } from 'lucide-react';
 import type { CharacterOption, ClientMessage, SocialState } from '../../shared/protocol';
 import { Avatar, IconButton } from './primitives';
 
@@ -7,6 +7,8 @@ export function SocialPanel({ state, connected, characters, send, open, setOpen,
   const [message, setMessage] = useState(''); const chat = useRef<HTMLDivElement>(null); const input = useRef<HTMLInputElement>(null);
   const pending = useRef<{ text: string; sentAt: number } | null>(null);
   const players = state.players.filter(player => player.online); const last = state.chat.at(-1);
+  const invited = new Set(state.party?.pending.map(item => item.userId));
+  const canInvite = !state.party || (state.party.leaderId === state.self.id && state.party.phase === 'forming' && state.party.members.length < state.party.maxMembers);
   useEffect(() => { if (chat.current) chat.current.scrollTop = chat.current.scrollHeight; }, [state.chat.length, last?.id, open, tab]);
   useEffect(() => {
     const waiting = pending.current;
@@ -22,7 +24,7 @@ export function SocialPanel({ state, connected, characters, send, open, setOpen,
       {tab === 'chat' ? <><div className="chat-messages" ref={chat} role="log" aria-live="polite" aria-label="全员文字频道" aria-relevant="additions">
         {!state.chat.length ? <div className="empty-message"><MessageCircle size={28} /><p>公园里见！</p><span>和所有在线的朋友打个招呼。</span></div> : state.chat.map(item => <div className={`chat-line ${item.userId === state.self.id ? 'own-message' : ''}`} key={item.id}><span className="chat-author">{item.nickname}<time dateTime={new Date(item.sentAt).toISOString()}>{new Date(item.sentAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })}</time></span><p>{item.text}</p></div>)}
       </div><form className="chat-form" onSubmit={submit}><input ref={input} data-testid="chat-input" aria-label="发送给所有人的消息" placeholder={connected ? '和大家说点什么…' : '连接恢复后继续聊天'} maxLength={200} value={message} disabled={!connected} onChange={event => setMessage(event.target.value)} /><button className="send-button" data-testid="chat-send" type="submit" aria-label="发送消息" disabled={!connected || !message.trim()}><ArrowUp size={20} /></button></form><span className="channel-note">大厅和游戏中的所有人都能看到</span></> : <div className="player-list">
-        {players.map(player => <div className="player-row" key={player.id}><Avatar player={player} characters={characters} /><div className="player-identity"><strong>{player.nickname}{player.id === state.self.id && <span className="you-label">我</span>}</strong><span>{player.world === 'challenge' ? '正在荡秋千' : player.partyId ? '已在队伍中' : '在公园散步'}</span></div>{player.id !== state.self.id && !player.partyId && (!state.party || state.party.leaderId === state.self.id) && <IconButton icon={UserPlus} data-testid={`invite-player-${player.id}`} label={`邀请 ${player.nickname}`} disabled={!connected} onClick={() => send({ type: 'party.invite', userId: player.id })} />}</div>)}
+        {players.map(player => <div className="player-row" key={player.id}><Avatar player={player} characters={characters} /><div className="player-identity"><strong>{player.nickname}{player.id === state.self.id && <span className="you-label">我</span>}</strong><span>{player.world === 'challenge' ? '正在荡秋千' : player.partyId ? '已在队伍中' : '在公园散步'}</span></div>{player.id !== state.self.id && !player.partyId && canInvite && (invited.has(player.id) ? <span className="invite-pending" data-testid={`invited-player-${player.id}`}><Check size={13} />已邀请</span> : <button className="button subtle invite-button" data-testid={`invite-player-${player.id}`} aria-label={`邀请 ${player.nickname}`} disabled={!connected} onClick={() => send({ type: 'party.invite', userId: player.id })}><UserPlus size={14} />邀请</button>)}</div>)}
       </div>}
     </> : <>{last && <button className="chat-preview" onClick={() => { setTab('chat'); setOpen(true); }}><strong>{last.nickname}</strong><span>{last.text}</span></button>}<button className="hud-button" onClick={() => { setTab('chat'); setOpen(true); }}><MessageCircle size={19} />聊两句<span className="keyboard-hint">Enter</span></button></>}
   </section>;

@@ -155,6 +155,7 @@ export class GameService {
     const team = peer.partyId ? this.parties.get(peer.partyId) : undefined;
     const party: Party | null = team ? {
       id: team.id, leaderId: team.leaderId, inviteCode: team.inviteCode, phase: team.phase, maxMembers: this.config.game.maxPartySize,
+      pending: [...this.peers.entries()].flatMap(([id, other]) => [...other.invitations.values()].filter(invitation => invitation.partyId === team.id && invitation.expiresAt > Date.now()).map(invitation => ({ userId: id, expiresAt: invitation.expiresAt }))),
       members: [...team.members].map(id => { const member = this.peers.get(id)!; return { ...member.profile, online: Boolean(member.connection), ready: isReady(member), autoReady: member.autoReady, mic: { ...member.mic }, micless: member.micless && !member.ready }; }),
     } : null;
     return {

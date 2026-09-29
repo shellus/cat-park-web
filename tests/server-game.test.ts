@@ -266,3 +266,17 @@ test('an expired player stays in the lobby as an offline cat until they return',
     assert.equal(f.social(0).offline.length, 0);
   } finally { f.close(); }
 });
+
+test('a forming party leader sees who has a pending invitation until it is answered', async () => {
+  const f = await fixture(3);
+  try {
+    await f.send(0, { type: 'party.create' });
+    await f.send(0, { type: 'party.invite', userId: f.users[1].profile.id });
+    await f.send(0, { type: 'party.invite', userId: f.users[2].profile.id });
+    assert.deepEqual(f.social(0).party!.pending.map(item => item.userId).sort(), [f.users[1].profile.id, f.users[2].profile.id].sort());
+    await f.send(1, { type: 'party.accept', invitationId: f.social(1).invitations[0].id });
+    await f.send(2, { type: 'party.decline', invitationId: f.social(2).invitations[0].id });
+    assert.deepEqual(f.social(0).party!.pending, []);
+    assert.equal(f.social(0).party!.members.length, 2);
+  } finally { f.close(); }
+});

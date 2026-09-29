@@ -18,6 +18,8 @@ export interface PartyMember extends PlayerProfile {
 export interface Party {
   id: string; leaderId: string; members: PartyMember[]; phase: 'forming' | 'playing' | 'won';
   maxMembers: number; inviteCode: string;
+  /** Outstanding invitations sent by this party, so the inviter can see who is still pending. */
+  pending: { userId: string; expiresAt: number }[];
 }
 /** A cat left standing in the lobby after its player went offline; drawn greyed out. */
 export interface OfflinePlayer extends PlayerProfile { x: number; y: number; lastSeenAt: number }
