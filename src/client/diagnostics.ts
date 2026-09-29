@@ -15,7 +15,8 @@ export function diagnosticValue(value: unknown, depth = 0, seen = new WeakSet<ob
   if (typeof value === 'string') return value.slice(0, 8000);
   if (typeof value !== 'object') return String(value);
   if (seen.has(value)) return '[circular]';
-  if (depth > 5) return '[depth limit]';
+  // Deep enough for voice report -> transport snapshot -> stats entries.
+  if (depth > 8) return '[depth limit]';
   seen.add(value);
   if (value instanceof Error) return {
     name: value.name, message: value.message, stack: value.stack,
