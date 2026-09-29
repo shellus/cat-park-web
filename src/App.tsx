@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowRight, Check, KeyRound, LoaderCircle, Maximize, Minimize, RotateCw, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
+import { ArrowRight, Check, KeyRound, LoaderCircle, Maximize, Minimize, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
 import GameCanvas from './game/GameCanvas';
 import { usePark } from './client/usePark';
 import { useVoice } from './client/useVoice';
 import { sendDebugReport, setDiagnosticContext } from './client/diagnostics';
 import { AccountDialog } from './ui/AccountDialog';
 import { PartyPanel } from './ui/PartyPanel';
+import { RotateHint } from './ui/RotateHint';
 import { SocialPanel } from './ui/SocialPanel';
 import { Avatar, IconButton, InlineError, Modal } from './ui/primitives';
 import type { InputState } from '../shared/protocol';
@@ -68,6 +69,6 @@ export default function App() {
     {self && <AccountDialog open={!!settings} onOpenChange={value => setSettings(value ? settings || 'appearance' : false)} tab={settings || 'appearance'} profile={self} credentials={park.credentials} username={park.username} setUsername={park.setUsername} config={park.config} updateProfile={park.updateProfile} changePassword={park.changePassword} dark={dark} onTheme={() => setDark(value => !value)} debugReport={debugReport} />}
     <Modal open={!!inviteCode && !!social} onOpenChange={value => { if (!value) closeInvite(); }} title="朋友在等你，一起荡秋千？" description={party ? '当前已经在队伍中。离开当前队伍后，可以接受这个邀请。' : '加入后会开启队伍语音。请允许麦克风，并说一句话完成准备检查。'}><div className="dialog-actions"><button className="button subtle" onClick={closeInvite}>先逛逛公园</button><button className="button primary" disabled={!connected || !!party || invitePending} onClick={() => { if (inviteCode && park.send({ type: 'party.accept', inviteCode })) setInvitePending(true); }}>{invitePending ? '正在加入…' : '加入朋友的队伍'}<ArrowRight size={16} /></button></div></Modal>
     <Modal open={park.status === 'recovery'} onOpenChange={() => undefined} title="找回你的那只小猫" description={park.authError || '输入用户名或用户 ID 和密码，继续使用之前的账号。'} className="recovery-dialog"><form onSubmit={recover}><label className="field">用户名或用户 ID<input autoComplete="username" required value={recoveryId} onChange={event => setRecoveryId(event.target.value)} /></label><label className="field">密码<input type="password" autoComplete="current-password" required value={recoveryPassword} onChange={event => setRecoveryPassword(event.target.value)} /></label><button className="button primary full-width" disabled={recoveryBusy}><KeyRound size={17} />{recoveryBusy ? '正在恢复…' : '恢复账号'}</button></form><InlineError message={recoveryError} />{park.credentials && <button className="button subtle full-width" disabled={recoveryBusy} onClick={() => { setRecoveryPassword(park.credentials!.password); setRecoveryId(park.credentials!.userId); }}>填入浏览器保存的凭据</button>}{newAccountConfirmation ? <div className="new-account-confirm"><p>创建新账号会替换浏览器里保存的凭据。原账号仍可用 ID 和密码登录。</p><button className="button danger" disabled={recoveryBusy} onClick={() => void newAccount()}>确认创建新小猫</button><button className="text-button" onClick={() => setNewAccountConfirmation(false)}>取消</button></div> : <button className="text-button recovery-new" onClick={() => setNewAccountConfirmation(true)}>创建一只新的小猫</button>}</Modal>
-    <div className="rotate-hint" data-testid="rotate-hint" role="alert"><RotateCw size={42} strokeWidth={1.6} /><strong>请把手机横过来</strong><span>萌猫公园只支持横屏游玩</span></div>
+    <RotateHint />
   </main>;
 }

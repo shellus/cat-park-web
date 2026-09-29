@@ -123,6 +123,8 @@ test('desktop and mobile layouts render the original scene without page overflow
     const phone = await peer(mobile);
     // Portrait is not laid out: a full-screen hint asks to rotate, and it goes away in landscape.
     await expect(phone.getByTestId('rotate-hint')).toBeVisible();
+    // A browser tab keeps its toolbars even in landscape, so the hint also suggests installing.
+    await expect(phone.getByTestId('install-hint')).toBeVisible();
     await phone.screenshot({ path: '.impeccable/review/mobile-portrait.png' });
     await phone.setViewportSize({ width: 844, height: 390 });
     await expect(phone.getByTestId('rotate-hint')).toBeHidden();
