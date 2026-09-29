@@ -13,7 +13,7 @@ const ARRIVE_DISTANCE = 30, TARGET_TIMEOUT_MS = 8000;
 interface Stick { id: number; x: number; y: number; dx: number; dy: number; started: number; dragging: boolean }
 
 export default function GameCanvas(props: Props) {
-  const shell = useRef<HTMLDivElement>(null), host = useRef<HTMLDivElement>(null), latest = useRef(props), keys = useRef(new Set<string>()), jumps = useRef(new Set<number>());
+  const host = useRef<HTMLDivElement>(null), latest = useRef(props), keys = useRef(new Set<string>()), jumps = useRef(new Set<number>());
   const stick = useRef<Stick | null>(null), view = useRef<RenderView>({ cameraX: 0, cameraY: 0, zoom: 1, width: 1, height: 1 });
   const target = useRef<{ x: number; y: number; until: number } | null>(null);
   const [knob, setKnob] = useState<{ x: number; y: number; dx: number; dy: number } | null>(null);
@@ -45,15 +45,6 @@ export default function GameCanvas(props: Props) {
     setError(false);
     return mountGameRenderer(host.current, () => ({ world: latest.current.world, selfId: latest.current.selfId, readInput, sendInput: input => latest.current.onInput(input), lastSeen: latest.current.lastSeen, offline: latest.current.offline, view: view.current }), (message, failed = false) => { setLoading(previous => previous === message ? previous : message); setError(previous => previous === failed ? previous : failed); });
   }, [retry]);
-  useEffect(() => {
-    // Mobile browsers treat a downward drag as a page gesture and bring the address bar back even
-    // with touch-action:none; a non-passive touchmove that cancels the default keeps the game fullscreen.
-    const element = shell.current;
-    if (!element) return;
-    const block = (event: TouchEvent) => { if (event.cancelable) event.preventDefault(); };
-    element.addEventListener('touchmove', block, { passive: false });
-    return () => element.removeEventListener('touchmove', block);
-  }, []);
   useEffect(() => {
     const down = (event: KeyboardEvent) => {
       if (!movementKeys.has(event.code) || !latest.current.inputEnabled || editable(event.target)) return;
@@ -101,7 +92,7 @@ export default function GameCanvas(props: Props) {
     onPointerCancel(event: ReactPointerEvent<HTMLDivElement>) { if (stick.current?.id === event.pointerId) { stick.current = null; setKnob(null); } },
   };
   const release = (event: ReactPointerEvent<HTMLButtonElement>) => { jumps.current.delete(event.pointerId); };
-  return <div ref={shell} className="game-canvas-shell" data-testid="game-canvas" data-world={props.world?.kind ?? 'loading'}>
+  return <div className="game-canvas-shell" data-testid="game-canvas" data-world={props.world?.kind ?? 'loading'}>
     <div ref={host} className="game-pixi-host" onPointerDown={surface.onPointerDown} onPointerMove={surface.onPointerMove} onPointerUp={surface.onPointerUp} onPointerCancel={surface.onPointerCancel} onLostPointerCapture={surface.onPointerCancel} onContextMenu={event => event.preventDefault()} />
     {knob && <div className="game-stick" aria-hidden="true" style={{ left: knob.x, top: knob.y }}><i style={{ transform: `translate(${knob.dx}px, ${knob.dy}px)` }} /></div>}
     {loading && <div className={`game-load-state ${error ? 'is-error' : ''}`} role={error ? 'alert' : 'status'}>

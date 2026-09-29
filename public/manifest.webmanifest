@@ -1,0 +1,11 @@
+{
+  "name": "萌猫公园",
+  "short_name": "萌猫公园",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#c3d4a1",
+  "theme_color": "#e8f1d6",
+  "icons": [{ "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

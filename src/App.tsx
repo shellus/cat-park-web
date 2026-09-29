@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowRight, Check, KeyRound, LoaderCircle, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
+import { ArrowRight, Check, KeyRound, LoaderCircle, Maximize, Minimize, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
 import GameCanvas from './game/GameCanvas';
 import { usePark } from './client/usePark';
 import { useVoice } from './client/useVoice';
@@ -43,10 +43,18 @@ export default function App() {
   async function recover(event: FormEvent) { event.preventDefault(); setRecoveryBusy(true); setRecoveryError(''); try { await park.login({ userId: recoveryId.trim(), password: recoveryPassword }); } catch (error) { setRecoveryError(error instanceof Error ? error.message : '账号恢复失败，请重试'); } finally { setRecoveryBusy(false); } }
   async function newAccount() { setRecoveryBusy(true); setRecoveryError(''); try { await park.createGuest(); setNewAccountConfirmation(false); } catch (error) { setRecoveryError(error instanceof Error ? error.message : '暂时无法创建账号'); } finally { setRecoveryBusy(false); } }
   const onlineCount = social?.players.filter(player => player.online).length || 0;
+  const [fullscreen, setFullscreen] = useState(() => !!document.fullscreenElement);
+  useEffect(() => { const change = () => setFullscreen(!!document.fullscreenElement); document.addEventListener('fullscreenchange', change); return () => document.removeEventListener('fullscreenchange', change); }, []);
+  const canFullscreen = typeof document.documentElement.requestFullscreen === 'function' && document.fullscreenEnabled;
+  function toggleFullscreen() {
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    // Some browsers reject navigationUI; retry plainly so the tap still works.
+    else void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => document.documentElement.requestFullscreen().catch(() => park.setNotice('浏览器没有允许全屏，可以从浏览器菜单添加到主屏幕后打开')));
+  }
   return <main className="park-app">
     <div className="game-surface"><GameCanvas world={park.world} selfId={self?.id || ''} onInput={sendInput} inputEnabled={connected && !modal && !focused} lastSeen={lastSeen} offline={offline} /></div>
     <header className="park-header"><div className="park-name"><Trees size={23} strokeWidth={1.6} /><div><h1>萌猫公园</h1><span>{park.world?.kind === 'challenge' ? '绳子挑战 · 荡秋千' : '散散步，交个朋友'}</span></div></div>
-      {self && <div className="identity"><button className="identity-button" data-testid="settings" aria-label="打开我的小猫设置" onClick={() => setSettings('appearance')}><Avatar player={self} characters={park.config.characters} /><span><strong data-testid="self-name">{self.nickname}</strong><small>我的小猫 <Settings2 size={11} /></small></span></button><span className="self-id" data-testid="self-id">{self.id}</span><button className="online-button" aria-label={`查看 ${onlineCount} 位在线玩家`} onClick={() => { setSocialTab('players'); setSocialOpen(value => socialTab !== 'players' || !value); }}><Users size={17} /><span>{onlineCount}</span><i /></button></div>}
+      {self && <div className="identity"><button className="identity-button" data-testid="settings" aria-label="打开我的小猫设置" onClick={() => setSettings('appearance')}><Avatar player={self} characters={park.config.characters} /><span><strong data-testid="self-name">{self.nickname}</strong><small>我的小猫 <Settings2 size={11} /></small></span></button><span className="self-id" data-testid="self-id">{self.id}</span><button className="online-button" aria-label={`查看 ${onlineCount} 位在线玩家`} onClick={() => { setSocialTab('players'); setSocialOpen(value => socialTab !== 'players' || !value); }}><Users size={17} /><span>{onlineCount}</span><i /></button>{canFullscreen && <button className="online-button" data-testid="fullscreen" aria-label={fullscreen ? '退出全屏' : '全屏'} onClick={toggleFullscreen}>{fullscreen ? <Minimize size={17} /> : <Maximize size={17} />}</button>}</div>}
     </header>
     {social && self && <><PartyPanel debugReport={debugReport} party={party} selfId={self.id} characters={park.config.characters} connected={connected} minPartySize={park.config.minPartySize} send={park.send} voice={voice} onInvite={() => { setSocialTab('players'); setSocialOpen(true); }} notify={park.setNotice} onDialog={setDialogOpen} /><SocialPanel state={social} connected={connected} characters={park.config.characters} send={park.send} open={socialOpen} setOpen={setSocialOpen} tab={socialTab} setTab={setSocialTab} />
       {social.invitations.length > 0 && !party && <aside className="invitations" aria-label="收到的队伍邀请">{social.invitations.map(invite => <div className="invitation" key={invite.id}><span><strong>{invite.fromName}</strong> 邀请你一起荡秋千</span><div><button className="button primary" data-testid={`accept-invite-${invite.id}`} disabled={!connected} onClick={() => park.send({ type: 'party.accept', invitationId: invite.id })}><Check size={15} />加入</button><IconButton icon={X} label={`拒绝 ${invite.fromName} 的邀请`} onClick={() => park.send({ type: 'party.decline', invitationId: invite.id })} /></div></div>)}</aside>}
