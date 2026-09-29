@@ -16,7 +16,7 @@ try {
   for (const [index, nickname] of ['小橘', '团子', '奶糖', '薄荷'].entries()) {
     const mobile = index === 1;
     const context = await browser.newContext({ baseURL, permissions: ['microphone'],
-      viewport: mobile ? { width: 390, height: 844 } : { width: 1440, height: 900 },
+      viewport: mobile ? { width: 844, height: 390 } : { width: 1440, height: 900 },
       isMobile: mobile, hasTouch: mobile, deviceScaleFactor: 1,
     });
     const response = await context.request.post('/api/account/guest');

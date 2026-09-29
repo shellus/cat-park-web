@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { ArrowRight, Check, KeyRound, LoaderCircle, Maximize, Minimize, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
+import { ArrowRight, Check, KeyRound, LoaderCircle, Maximize, Minimize, RotateCw, Settings2, Trees, Trophy, Users, WifiOff, X } from 'lucide-react';
 import GameCanvas from './game/GameCanvas';
 import { usePark } from './client/usePark';
 import { useVoice } from './client/useVoice';
@@ -16,7 +16,7 @@ export default function App() {
   const voice = useVoice(party?.id || null, social?.voiceAvailable || false, park.grant, connected, park.send);
   useEffect(() => { setDiagnosticContext({ partyId: party?.id ?? null, scene: park.world?.kind ?? null, gameConnection: park.status }); }, [party?.id, park.world?.kind, park.status]);
   const [settings, setSettings] = useState<false | 'appearance' | 'account'>(false); const [dialogOpen, setDialogOpen] = useState(false);
-  const [socialOpen, setSocialOpen] = useState(() => matchMedia('(min-width: 701px)').matches); const [socialTab, setSocialTab] = useState<'chat' | 'players'>('chat');
+  const [socialOpen, setSocialOpen] = useState(() => matchMedia('(min-width: 701px) and (pointer: fine)').matches); const [socialTab, setSocialTab] = useState<'chat' | 'players'>('chat');
   const [focused, setFocused] = useState(false);
   const [inviteCode, setInviteCode] = useState(() => new URL(location.href).searchParams.get('invite'));
   const [invitePending, setInvitePending] = useState(false);
@@ -49,9 +49,11 @@ export default function App() {
   function toggleFullscreen() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     // Some browsers reject navigationUI; retry plainly so the tap still works.
-    else void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => document.documentElement.requestFullscreen().catch(() => park.setNotice('浏览器没有允许全屏，可以从浏览器菜单添加到主屏幕后打开')));
+    else void document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => document.documentElement.requestFullscreen()).then(lockLandscape, () => park.setNotice('浏览器没有允许全屏，可以从浏览器菜单添加到主屏幕后打开'));
   }
-  return <main className="park-app">
+  // Only fullscreen pages may lock orientation, and iOS has no lock at all; the portrait overlay covers the rest.
+  function lockLandscape() { void (screen.orientation as ScreenOrientation & { lock?: (orientation: string) => Promise<void> }).lock?.('landscape').catch(() => undefined); }
+  return <main className={`park-app ${park.world?.kind === 'challenge' ? 'in-challenge' : ''}`}>
     <div className="game-surface"><GameCanvas world={park.world} selfId={self?.id || ''} onInput={sendInput} inputEnabled={connected && !modal && !focused} lastSeen={lastSeen} offline={offline} /></div>
     <header className="park-header"><div className="park-name"><Trees size={23} strokeWidth={1.6} /><div><h1>萌猫公园</h1><span>{park.world?.kind === 'challenge' ? '绳子挑战 · 荡秋千' : '散散步，交个朋友'}</span></div></div>
       {self && <div className="identity"><button className="identity-button" data-testid="settings" aria-label="打开我的小猫设置" onClick={() => setSettings('appearance')}><Avatar player={self} characters={park.config.characters} /><span><strong data-testid="self-name">{self.nickname}</strong><small>我的小猫 <Settings2 size={11} /></small></span></button><span className="self-id" data-testid="self-id">{self.id}</span><button className="online-button" aria-label={`查看 ${onlineCount} 位在线玩家`} onClick={() => { setSocialTab('players'); setSocialOpen(value => socialTab !== 'players' || !value); }}><Users size={17} /><span>{onlineCount}</span><i /></button>{canFullscreen && <button className="online-button" data-testid="fullscreen" aria-label={fullscreen ? '退出全屏' : '全屏'} onClick={toggleFullscreen}>{fullscreen ? <Minimize size={17} /> : <Maximize size={17} />}</button>}</div>}
@@ -66,5 +68,6 @@ export default function App() {
     {self && <AccountDialog open={!!settings} onOpenChange={value => setSettings(value ? settings || 'appearance' : false)} tab={settings || 'appearance'} profile={self} credentials={park.credentials} username={park.username} setUsername={park.setUsername} config={park.config} updateProfile={park.updateProfile} changePassword={park.changePassword} dark={dark} onTheme={() => setDark(value => !value)} debugReport={debugReport} />}
     <Modal open={!!inviteCode && !!social} onOpenChange={value => { if (!value) closeInvite(); }} title="朋友在等你，一起荡秋千？" description={party ? '当前已经在队伍中。离开当前队伍后，可以接受这个邀请。' : '加入后会开启队伍语音。请允许麦克风，并说一句话完成准备检查。'}><div className="dialog-actions"><button className="button subtle" onClick={closeInvite}>先逛逛公园</button><button className="button primary" disabled={!connected || !!party || invitePending} onClick={() => { if (inviteCode && park.send({ type: 'party.accept', inviteCode })) setInvitePending(true); }}>{invitePending ? '正在加入…' : '加入朋友的队伍'}<ArrowRight size={16} /></button></div></Modal>
     <Modal open={park.status === 'recovery'} onOpenChange={() => undefined} title="找回你的那只小猫" description={park.authError || '输入用户名或用户 ID 和密码，继续使用之前的账号。'} className="recovery-dialog"><form onSubmit={recover}><label className="field">用户名或用户 ID<input autoComplete="username" required value={recoveryId} onChange={event => setRecoveryId(event.target.value)} /></label><label className="field">密码<input type="password" autoComplete="current-password" required value={recoveryPassword} onChange={event => setRecoveryPassword(event.target.value)} /></label><button className="button primary full-width" disabled={recoveryBusy}><KeyRound size={17} />{recoveryBusy ? '正在恢复…' : '恢复账号'}</button></form><InlineError message={recoveryError} />{park.credentials && <button className="button subtle full-width" disabled={recoveryBusy} onClick={() => { setRecoveryPassword(park.credentials!.password); setRecoveryId(park.credentials!.userId); }}>填入浏览器保存的凭据</button>}{newAccountConfirmation ? <div className="new-account-confirm"><p>创建新账号会替换浏览器里保存的凭据。原账号仍可用 ID 和密码登录。</p><button className="button danger" disabled={recoveryBusy} onClick={() => void newAccount()}>确认创建新小猫</button><button className="text-button" onClick={() => setNewAccountConfirmation(false)}>取消</button></div> : <button className="text-button recovery-new" onClick={() => setNewAccountConfirmation(true)}>创建一只新的小猫</button>}</Modal>
+    <div className="rotate-hint" data-testid="rotate-hint" role="alert"><RotateCw size={42} strokeWidth={1.6} /><strong>请把手机横过来</strong><span>萌猫公园只支持横屏游玩</span></div>
   </main>;
 }

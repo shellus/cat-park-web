@@ -66,6 +66,8 @@ Linux 开发可用 `./tmux-dev-manager.sh start|stop|restart|status|attach|healt
 
 ## 行为与验证边界
 
+手机只支持横屏：触屏设备竖屏时由全屏遮罩提示旋转；点全屏按钮进入全屏后尝试 `screen.orientation.lock('landscape')`，安卓 Chrome/Edge 可锁定，iOS Safari 不支持网页全屏与方向锁定，只能靠遮罩提示或添加到主屏幕后打开。
+
 临时物理、碰撞和通关行为见 [游戏行为说明](./game-behavior.md)。素材齐全不代表玩法逻辑已全部校准。语音、移动端后台、蓝牙切换、蜂窝网络和公网部署应按实际设备与网络单独验收。
 
 ## README 截图

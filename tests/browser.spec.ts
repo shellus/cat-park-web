@@ -121,9 +121,11 @@ test('desktop and mobile layouts render the original scene without page overflow
   const mobile = await browser.newContext({ baseURL: new URL(page.url()).origin, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1, permissions: ['microphone'] });
   try {
     const phone = await peer(mobile);
-    expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-    await phone.screenshot({ path: '.impeccable/review/mobile.png', fullPage: true });
+    // Portrait is not laid out: a full-screen hint asks to rotate, and it goes away in landscape.
+    await expect(phone.getByTestId('rotate-hint')).toBeVisible();
+    await phone.screenshot({ path: '.impeccable/review/mobile-portrait.png' });
     await phone.setViewportSize({ width: 844, height: 390 });
+    await expect(phone.getByTestId('rotate-hint')).toBeHidden();
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await phone.screenshot({ path: '.impeccable/review/mobile-landscape.png', fullPage: true });
   } finally { await mobile.close(); }
@@ -170,7 +172,7 @@ test('a player whose microphone is denied can still ready after confirming', asy
 });
 
 test('touch: a tap walks the cat to the spot and a held drag steers like a joystick', async ({ browser, baseURL }) => {
-  const mobile = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  const mobile = await browser.newContext({ baseURL, viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
   try {
     const phone = await peer(mobile);
     const canvas = phone.locator('canvas');
@@ -180,14 +182,14 @@ test('touch: a tap walks the cat to the spot and a held drag steers like a joyst
     const cdp = await mobile.newCDPSession(phone);
     const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number, y: number) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y, id: 1 }] });
     let before = await position();
-    await touch('touchStart', 195, 640); await touch('touchEnd', 195, 640);
+    await touch('touchStart', 422, 370); await touch('touchEnd', 422, 370);
     await expect.poll(async () => before.y - (await position()).y, { timeout: 5000 }).toBeGreaterThan(120);
     before = await position();
-    await touch('touchStart', 195, 420);
-    for (const x of [185, 170, 150]) await touch('touchMove', x, 420);
+    await touch('touchStart', 422, 195);
+    for (const x of [412, 397, 377]) await touch('touchMove', x, 195);
     await expect(phone.locator('.game-stick')).toBeVisible();
     await phone.waitForTimeout(500);
-    await touch('touchEnd', 150, 420);
+    await touch('touchEnd', 377, 195);
     expect(before.x - (await position()).x).toBeGreaterThan(100);
     await expect(phone.locator('.game-stick')).toHaveCount(0);
   } finally { await mobile.close(); }
@@ -195,7 +197,7 @@ test('touch: a tap walks the cat to the spot and a held drag steers like a joyst
 
 test('touch in a challenge: arrow buttons and the centre stick move sideways, the jump button works alongside', async ({ page, browser, baseURL }) => {
   await enter(page);
-  const mobile = await browser.newContext({ baseURL, viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
+  const mobile = await browser.newContext({ baseURL, viewport: { width: 844, height: 390 }, isMobile: true, hasTouch: true, permissions: ['microphone'] });
   try {
     const phone = await peer(mobile);
     await page.getByTestId('create-party').click();
@@ -244,8 +246,8 @@ test('touch in a challenge: arrow buttons and the centre stick move sideways, th
     await touch('touchEnd', []);
     expect(await x() - before).toBeGreaterThan(80);
     // Touching the scene itself no longer opens the floating joystick in a challenge.
-    await touch('touchStart', [{ x: 195, y: 420, id: 4 }]);
-    await touch('touchMove', [{ x: 150, y: 420, id: 4 }]);
+    await touch('touchStart', [{ x: 422, y: 195, id: 4 }]);
+    await touch('touchMove', [{ x: 377, y: 195, id: 4 }]);
     await expect(phone.locator('.game-stick')).toHaveCount(0);
     await touch('touchEnd', []);
     expect(await phone.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
