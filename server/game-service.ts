@@ -29,8 +29,13 @@ interface Team {
 }
 const unchecked = (): MicReport => ({ status: 'unchecked', hasSignal: false, voiceConnected: false, published: false });
 const goodMic = (report: MicReport) => report.status === 'ok' && report.hasSignal && report.voiceConnected && report.published;
-/** Verified microphone readiness, or an explicit choice to play without one. */
-const isReady = (peer: Peer) => Boolean(peer.connection) && (peer.micless || (peer.ready && peer.autoReady && goodMic(peer.mic)));
+const voiceVerified = (peer: Peer) => peer.verified && goodMic(peer.mic);
+/**
+ * Members need verified microphone readiness, or an explicit choice to play without one. The
+ * leader has no ready intent of its own: starting is its choice, so only the microphone counts.
+ */
+const isReady = (peer: Peer, leaderId: string) => Boolean(peer.connection) && (peer.micless
+  || (peer.profile.id === leaderId ? voiceVerified(peer) : peer.ready && peer.autoReady && goodMic(peer.mic)));
 const zeroInput = { x: 0, y: 0, jump: false, sequence: 0 };
 // Clients send one input per 60 Hz tick. A short queue absorbs network jitter; beyond it the
 // oldest inputs are merged away so a backlog never turns into permanent input delay.
@@ -156,7 +161,7 @@ export class GameService {
     const party: Party | null = team ? {
       id: team.id, leaderId: team.leaderId, inviteCode: team.inviteCode, phase: team.phase, maxMembers: this.config.game.maxPartySize,
       pending: [...this.peers.entries()].flatMap(([id, other]) => [...other.invitations.values()].filter(invitation => invitation.partyId === team.id && invitation.expiresAt > Date.now()).map(invitation => ({ userId: id, expiresAt: invitation.expiresAt }))),
-      members: [...team.members].map(id => { const member = this.peers.get(id)!; return { ...member.profile, online: Boolean(member.connection), ready: isReady(member), autoReady: member.autoReady, mic: { ...member.mic }, micless: member.micless && !member.ready }; }),
+      members: [...team.members].map(id => { const member = this.peers.get(id)!; return { ...member.profile, online: Boolean(member.connection), ready: isReady(member, team.leaderId), autoReady: member.autoReady, mic: { ...member.mic }, micless: member.micless && !voiceVerified(member) }; }),
     } : null;
     return {
       self: { ...peer.profile }, party, invitations: [...peer.invitations.values()], chat: this.chat,
@@ -238,12 +243,14 @@ export class GameService {
           this.broadcastSocial(); break;
         }
         case 'party.ready': {
-          this.requireParty(peer);
-          peer.autoReady = action.ready; this.accounts.setAutoReady(userId, action.ready);
-          peer.ready = false; peer.micVersion++; peer.micless = action.ready && Boolean(action.withoutMic);
-          if (action.ready) await this.verifyPeer(peer);
+          const party = this.requireParty(peer), leader = party.leaderId === userId;
+          // The leader only chooses whether to play without a microphone; its saved intent is untouched.
+          assert(!leader || !action.ready || action.withoutMic, 'leader_no_ready', '队长无需准备，麦克风检查通过后即可出发');
+          if (!leader) { peer.autoReady = action.ready; this.accounts.setAutoReady(userId, action.ready); peer.ready = false; peer.micVersion++; }
+          peer.micless = action.ready && Boolean(action.withoutMic);
+          if (action.ready && !leader) await this.verifyPeer(peer);
           this.broadcastSocial();
-          if (action.ready && !isReady(peer)) throw new AppError('microphone_not_ready', '麦克风与队伍语音检查通过后才能准备');
+          if (action.ready && !isReady(peer, party.leaderId)) throw new AppError('microphone_not_ready', '麦克风与队伍语音检查通过后才能准备');
           break;
         }
         case 'mic': {
@@ -305,13 +312,13 @@ export class GameService {
     const partyId = peer.partyId, version = peer.micVersion, connectionId = peer.connection.id;
     const verified = await this.voice.verify(partyId, peer.profile.id).catch(() => false);
     if (this.disposed || peer.partyId !== partyId || peer.micVersion !== version || peer.connection?.id !== connectionId) return false;
-    const wasReady = peer.ready;
+    const wasReady = peer.ready, wasVerified = peer.verified;
     peer.verified = verified; peer.verifiedAt = Date.now(); peer.ready = verified && peer.autoReady;
     if (!verified) {
       peer.mic = { ...peer.mic, status: 'disconnected', voiceConnected: false, published: false, message: '语音服务未确认有效麦克风音轨，请重新连接语音' };
       peer.micVersion++;
     }
-    if (wasReady !== peer.ready || !verified) this.broadcastSocial();
+    if (wasReady !== peer.ready || wasVerified !== verified || !verified) this.broadcastSocial();
     return verified;
   }
   private async start(peer: Peer, restart: boolean) {
@@ -320,7 +327,7 @@ export class GameService {
     assert(restart ? Boolean(party.simulation) : !party.simulation, 'invalid_phase', restart ? '当前没有可以重开的对局' : '队伍已经开始游戏');
     assert(party.members.size >= MIN_PARTY_SIZE, 'not_enough_players', `至少 ${MIN_PARTY_SIZE} 人才能开始`);
     const members = shuffled([...party.members].map(id => this.peers.get(id)!));
-    assert(members.every(isReady), 'players_not_ready', '所有队员在线并准备后才能开始');
+    assert(members.every(member => isReady(member, party.leaderId)), 'players_not_ready', '所有队员在线并准备、队长麦克风检查通过后才能开始');
     party.starting = true;
     const generation = party.generation;
     let simulation: GameSimulation | undefined;
@@ -329,7 +336,7 @@ export class GameService {
       const checks = await Promise.all(members.filter(member => !member.micless).map(member => this.verifyPeer(member)));
       assert(checks.every(Boolean), 'voice_check_failed', '语音检查未通过，请确认所有队员麦克风与语音连接');
       simulation = await this.createSimulation('challenge');
-      assert(this.parties.get(party.id) === party && party.generation === generation && party.leaderId === peer.profile.id && members.every(member => member.partyId === party.id && isReady(member)), 'party_changed', '队伍状态发生变化，请重新准备');
+      assert(this.parties.get(party.id) === party && party.generation === generation && party.leaderId === peer.profile.id && members.every(member => member.partyId === party.id && isReady(member, party.leaderId)), 'party_changed', '队伍状态发生变化，请重新准备');
       for (const member of members) simulation.addPlayer(member.profile);
       for (const member of members) this.lobby.removePlayer(member.profile.id);
       party.simulation?.dispose(); party.simulation = simulation; simulation = undefined;

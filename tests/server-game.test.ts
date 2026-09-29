@@ -78,6 +78,35 @@ test('two ready players can start; non-leader is rejected and chat remains publi
   } finally { f.close(); }
 });
 
+test('the leader has no ready intent: a verified microphone is enough and ready requests are refused', async () => {
+  const f = await fixture(2);
+  try {
+    const leaderId = f.users[0].profile.id;
+    f.accounts.setAutoReady(leaderId, false);
+    await f.send(0, { type: 'party.create' });
+    const leader = () => f.social(0).party!.members.find(member => member.id === leaderId)!;
+    await f.send(0, { type: 'party.ready', ready: true });
+    assert.equal(f.connections[0].events.at(-1)!.value.code, 'leader_no_ready');
+    await f.send(0, { type: 'mic', report: good });
+    assert.equal(leader().ready, true);
+    assert.equal(f.accounts.get(leaderId)!.autoReady, false);
+    await f.send(0, { type: 'party.invite', userId: f.users[1].profile.id });
+    await f.send(1, { type: 'party.accept', invitationId: f.social(1).invitations[0].id });
+    await f.send(1, { type: 'mic', report: good });
+    await f.send(0, { type: 'party.start' });
+    assert.equal(f.social(0).party!.phase, 'playing');
+    await f.send(0, { type: 'party.return' });
+    // Without a working microphone the leader may still choose to go without one.
+    f.voice.failed.add(leaderId);
+    await f.send(0, { type: 'mic', report: { status: 'denied', hasSignal: false, voiceConnected: false, published: false } });
+    assert.equal(leader().ready, false);
+    await f.send(0, { type: 'party.ready', ready: true, withoutMic: true });
+    assert.equal(leader().ready, true); assert.equal(leader().micless, true);
+    await f.send(0, { type: 'party.start' });
+    assert.equal(f.social(0).party!.phase, 'playing');
+  } finally { f.close(); }
+});
+
 test('any disconnect during a game ends the whole party simulation immediately', async () => {
   const f = await fixture(2);
   try {
