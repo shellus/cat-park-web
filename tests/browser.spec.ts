@@ -128,6 +128,12 @@ test('desktop and mobile layouts render the original scene without page overflow
     await phone.screenshot({ path: '.impeccable/review/mobile-portrait.png' });
     await phone.setViewportSize({ width: 844, height: 390 });
     await expect(phone.getByTestId('rotate-hint')).toBeHidden();
+    // On a short landscape screen the prompts must not cover the party panel's action button.
+    const partyAction = phone.getByTestId('create-party');
+    const box = (await partyAction.boundingBox())!;
+    for (const x of [box.x + 8, box.x + box.width / 2, box.x + box.width - 8]) {
+      expect(await phone.evaluate(([x, y]) => !!document.elementFromPoint(x, y)?.closest('[data-testid="create-party"]'), [x, box.y + box.height / 2] as const)).toBe(true);
+    }
     // Landscape in a browser tab still suggests installing, once, until dismissed.
     await expect(phone.getByTestId('install-tip')).toBeVisible();
     await phone.getByTestId('install-tip').getByRole('button', { name: '不再提示' }).click();
