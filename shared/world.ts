@@ -106,10 +106,12 @@ export function createWorld(
   function outOfBounds(p: Point) {
     return p.y < bounds.minY - R.challenge.dieMargin || p.x < bounds.minX || p.x > bounds.maxX;
   }
-  function isGrounded(player: Player): boolean {
+  /** What the player stands on: the stage, another player, or nothing. */
+  function groundUnder(player: Player): 'stage' | 'player' | null {
     const p = player.body.translation();
+    let found: 'stage' | 'player' | null = null;
     // Three foot rays avoid side-wall contacts counting as a floor; exclude the whole own body.
-    return [-0.3, 0, 0.3].some(x => {
+    for (const x of [-0.3, 0, 0.3]) {
       const hit = world.castRay(
         new RAPIER.Ray({ x: p.x + x, y: p.y - R.player.halfHeight / S + 0.04 }, { x: 0, y: -1 }),
         0.11,
@@ -119,8 +121,11 @@ export function createWorld(
         player.collider,
         player.body,
       );
-      return !!hit;
-    });
+      if (!hit) continue;
+      if (!hit.collider.parent()) return 'stage';
+      found = 'player';
+    }
+    return found;
   }
   const playerBodies = new Set<number>();
   /** Whether another player stands right beside `player` in `direction`, so walking on would shove it. */
@@ -172,7 +177,8 @@ export function createWorld(
         }
         continue;
       }
-      player.grounded = isGrounded(player) && v.y <= 70;
+      const ground = v.y <= 70 ? groundUnder(player) : null;
+      player.grounded = !!ground;
       if (player.grounded) {
         player.lastGrounded = elapsed;
         // Checkpoints only on real stage platforms, never another player's head.
@@ -190,7 +196,8 @@ export function createWorld(
       // Players never shove each other: walking stops at a teammate's side instead of pushing it.
       const push = won || (player.input.x && playerAhead(player, Math.sign(player.input.x))) ? 0 : player.input.x;
       const jumping = player.jumpQueuedUntil >= elapsed && !won;
-      setPlanted(player, player.grounded && !push && !jumping);
+      // Only the stage holds a standing cat; a rider on a teammate's head must move with it.
+      setPlanted(player, ground === 'stage' && !push && !jumping);
       if (player.planted) continue;
       let vy = v.y;
       if (jumping) {
