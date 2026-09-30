@@ -12,7 +12,7 @@ export const GAME_RULES = {
     gravity: -3800,
     /** MaxHVelocity: pressing a direction never accelerates past this. */
     maxSpeed: 500,
-    /** HForce per unit mass; applied on the ground and in the air alike (HForceScaleFlying = 1). */
+    /** HForce per unit mass. Air control at the same strength (HForceScaleFlying = 1) is unconfirmed. */
     acceleration: 5000,
     /** UpForce impulse per unit mass. */
     jumpSpeed: 1300,
