@@ -5,7 +5,8 @@ import { GAME_RULES as R } from './game-behavior.ts';
 import { RopeModel } from './game-rope.ts';
 
 export interface GameSimulation {
-  addPlayer(profile: PlayerProfile): void;
+  /** Places a new player at `at`, or at the next free spawn slot. */
+  addPlayer(profile: PlayerProfile, at?: Point): void;
   removePlayer(id: string): void;
   updateProfile(profile: PlayerProfile): void;
   setInput(id: string, input: InputState): void;
@@ -225,7 +226,7 @@ export function createWorld(
     }
   }
   const api: PredictionWorld = {
-    addPlayer(profile) {
+    addPlayer(profile, at) {
       if (disposed) throw new Error('模拟已销毁');
       if (players.has(profile.id)) {
         api.updateProfile(profile);
@@ -233,7 +234,7 @@ export function createWorld(
       }
       const spawn = kind === 'lobby' ? content.lobby.spawn : R.challenge.spawn;
       const spacing = kind === 'lobby' ? R.lobby.spawnSpacing : R.challenge.spawnSpacing;
-      const p = {
+      const p = at ?? {
         x: spawn.x + (players.size % 6) * spacing,
         y: spawn.y + (kind === 'lobby' ? Math.floor(players.size / 6) * spacing : 0),
       };

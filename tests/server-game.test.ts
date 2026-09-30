@@ -9,11 +9,13 @@ import type { ActorSnapshot, InputState, PlayerProfile, WorldKind, WorldSnapshot
 
 class Simulation implements GameSimulation {
   players = new Map<string, PlayerProfile>();
+  positions = new Map<string, { x: number; y: number }>();
   inputs = new Map<string, InputState>();
   disposed = false;
   constructor(public kind: WorldKind) {}
-  addPlayer(profile: PlayerProfile) {
+  addPlayer(profile: PlayerProfile, at?: { x: number; y: number }) {
     this.players.set(profile.id, profile);
+    this.positions.set(profile.id, at ?? { x: 0, y: 0 });
   }
   removePlayer(id: string) {
     this.players.delete(id);
@@ -32,7 +34,15 @@ class Simulation implements GameSimulation {
       tick: 0,
       elapsed: 0,
       players: [...this.players.values()].map(
-        profile => ({ ...profile, x: 0, y: 0, vx: 0, vy: 0, facing: 1, grounded: true }) satisfies ActorSnapshot,
+        profile =>
+          ({
+            ...profile,
+            ...this.positions.get(profile.id)!,
+            vx: 0,
+            vy: 0,
+            facing: 1,
+            grounded: true,
+          }) satisfies ActorSnapshot,
       ),
       ropes: [],
       keyOwnerId: null,
@@ -405,6 +415,33 @@ test('an expired player stays in the lobby as an offline cat until they return',
     assert(f.accounts.recentlySeen(0, 10).some(player => player.id === id));
     f.service.connect(id, connection('back'));
     assert.equal(f.social(0).offline.length, 0);
+  } finally {
+    f.close();
+  }
+});
+
+test('an offline cat wakes up where it stood, and a finished challenge returns cats to their lobby spots', async () => {
+  const f = await fixture(2);
+  try {
+    const id = f.users[1].profile.id;
+    f.lobby.positions.set(id, { x: 900, y: -300 });
+    f.service.disconnect(id, f.connections[1].id);
+    await new Promise(resolve => setTimeout(resolve, 150));
+    assert.deepEqual(
+      f.social(0).offline.map(player => [player.x, player.y]),
+      [[900, -300]],
+    );
+    const back = connection('back');
+    f.service.connect(id, back);
+    f.connections[1] = back;
+    assert.deepEqual(f.lobby.positions.get(id), { x: 900, y: -300 });
+    f.lobby.positions.set(f.users[0].profile.id, { x: -400, y: 50 });
+    await pair(f);
+    await f.send(0, { type: 'party.start' });
+    assert.equal(f.social(0).party!.phase, 'playing');
+    await f.send(0, { type: 'party.return' });
+    assert.deepEqual(f.lobby.positions.get(id), { x: 900, y: -300 });
+    assert.deepEqual(f.lobby.positions.get(f.users[0].profile.id), { x: -400, y: 50 });
   } finally {
     f.close();
   }

@@ -11,6 +11,7 @@ import {
   type SocialState,
   type WorldSnapshot,
 } from '../shared/protocol.ts';
+import type { Point } from '../shared/game-content.ts';
 import type { AccountStore } from './accounts.ts';
 import type { AppConfig } from './config.ts';
 import { AppError, assert } from './errors.ts';
@@ -34,6 +35,8 @@ interface Peer {
   /** Explicitly readied without a working microphone; kept across mic report changes. */
   micless: boolean;
   lastSeenAt: number;
+  /** Where the cat stood in the lobby before a challenge, so returning puts it back there. */
+  lobbyAt?: Point;
   micVersion: number;
   verified: boolean;
   verifiedAt: number;
@@ -151,8 +154,10 @@ export class GameService {
         invitations: new Map(),
       };
       this.peers.set(userId, peer);
+      // A returning player's cat wakes up where it was left standing offline.
+      const away = this.away.get(userId);
+      this.lobby.addPlayer(peer.profile, away && { x: away.x, y: away.y });
       this.away.delete(userId);
-      this.lobby.addPlayer(peer.profile);
     }
     const previous = peer.connection;
     clearTimeout(peer.timer);
@@ -505,7 +510,7 @@ export class GameService {
     party.phase = 'forming';
     for (const id of party.members) {
       const peer = this.peers.get(id)!;
-      this.lobby.addPlayer(peer.profile);
+      this.lobby.addPlayer(peer.profile, peer.lobbyAt);
       this.applyInput(peer, zeroInput);
     }
   }
@@ -578,8 +583,13 @@ export class GameService {
         'party_changed',
         '队伍状态发生变化，请重新准备',
       );
-      for (const member of members) simulation.addPlayer(member.profile);
-      for (const member of members) this.lobby.removePlayer(member.profile.id);
+      const standing = new Map(this.lobby.snapshot().players.map(actor => [actor.id, actor]));
+      for (const member of members) {
+        const actor = standing.get(member.profile.id);
+        member.lobbyAt = actor && { x: actor.x, y: actor.y };
+        simulation.addPlayer(member.profile);
+        this.lobby.removePlayer(member.profile.id);
+      }
       party.simulation?.dispose();
       party.simulation = simulation;
       simulation = undefined;
