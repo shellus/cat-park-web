@@ -240,7 +240,11 @@ test('server voice failure revokes ready and blocks start despite an optimistic 
     assert.equal(f.social(1).party!.members[1].mic.status, 'disconnected');
     assert.equal(f.social(1).party!.members[1].autoReady, true);
     assert.equal(f.simulations.length, 0);
+    // The browser's report never changes, so the periodic re-check alone must recover a transient failure.
     f.voice.failed.clear();
+    await f.service.checkVoice();
+    assert.equal(f.social(1).party!.members[1].ready, true);
+    assert.equal(f.social(1).party!.members[1].mic.status, 'ok');
     await f.send(1, { type: 'mic', report: good });
     assert.equal(f.social(1).party!.members[1].ready, true);
     f.voice.available = false;

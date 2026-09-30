@@ -32,6 +32,8 @@ interface Peer {
   ready: boolean;
   autoReady: boolean;
   mic: MicReport;
+  /** The browser's own latest report; `mic` may override it after a failed server-side check. */
+  reported: MicReport;
   /** Explicitly readied without a working microphone; kept across mic report changes. */
   micless: boolean;
   lastSeenAt: number;
@@ -137,6 +139,7 @@ export class GameService {
         ready: false,
         autoReady: account.autoReady,
         mic: unchecked(),
+        reported: unchecked(),
         micless: false,
         lastSeenAt: 0,
         micVersion: 0,
@@ -298,6 +301,7 @@ export class GameService {
   private clearReady(peer: Peer, report: MicReport, keepMicless = false) {
     peer.micVersion++;
     peer.mic = report;
+    peer.reported = report;
     peer.ready = false;
     peer.verified = false;
     peer.verifiedAt = 0;
@@ -434,9 +438,9 @@ export class GameService {
           break;
         }
         case 'mic': {
-          const changed = JSON.stringify(peer.mic) !== JSON.stringify(action.report);
+          const changed = JSON.stringify(peer.reported) !== JSON.stringify(action.report);
           if (changed) this.clearReady(peer, { ...action.report }, true);
-          if (peer.partyId && goodMic(peer.mic)) await this.verifyPeer(peer);
+          if (peer.partyId && goodMic(peer.reported)) await this.verifyPeer(peer);
           if (changed) this.broadcastSocial();
           break;
         }
@@ -515,7 +519,7 @@ export class GameService {
     }
   }
   private async verifyPeer(peer: Peer): Promise<boolean> {
-    if (!peer.connection || !peer.partyId || !goodMic(peer.mic) || !this.voice.available) {
+    if (!peer.connection || !peer.partyId || !goodMic(peer.reported) || !this.voice.available) {
       peer.ready = false;
       peer.verified = false;
       return false;
@@ -536,7 +540,9 @@ export class GameService {
     peer.verified = verified;
     peer.verifiedAt = Date.now();
     peer.ready = verified && peer.autoReady;
-    if (!verified) {
+    // The browser keeps reporting the same good state, so a passing re-check is what clears the warning.
+    if (verified) peer.mic = peer.reported;
+    else {
       peer.mic = {
         ...peer.mic,
         status: 'disconnected',
@@ -644,7 +650,7 @@ export class GameService {
     try {
       await Promise.all(
         [...this.peers.values()]
-          .filter(peer => peer.partyId && peer.connection && goodMic(peer.mic))
+          .filter(peer => peer.partyId && peer.connection && goodMic(peer.reported))
           .map(peer => this.verifyPeer(peer)),
       );
     } finally {
