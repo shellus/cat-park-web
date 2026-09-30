@@ -475,8 +475,19 @@ export function mountGameRenderer(
         cameraX += (focus.x - cameraX) * blend;
         cameraY += (targetY - cameraY) * blend;
       }
-      const baseZoom = world.kind === 'lobby' ? R.render.lobbyZoom : R.render.challengeZoom;
-      const zoom = baseZoom * Math.min(1, Math.max(0.67, app.screen.width / 1000));
+      // The challenge shows the same view height on every screen and never looks past
+      // the map edges; the lobby keeps its own zoom.
+      const zoom =
+        world.kind === 'lobby'
+          ? R.render.lobbyZoom * Math.min(1, Math.max(0.67, app.screen.width / 1000))
+          : app.screen.height / R.challenge.view.height;
+      if (world.kind === 'challenge') {
+        const { minX, maxX, minY, maxY } = content.challenge.bounds;
+        const clampAxis = (value: number, low: number, high: number, half: number) =>
+          high - low <= half * 2 ? (low + high) / 2 : Math.max(low + half, Math.min(high - half, value));
+        cameraX = clampAxis(cameraX, minX, maxX, app.screen.width / zoom / 2);
+        cameraY = clampAxis(cameraY, -maxY, -minY, app.screen.height / zoom / 2);
+      }
       camera.scale.set(zoom);
       camera.position.set(app.screen.width / 2 - cameraX * zoom, app.screen.height / 2 - cameraY * zoom);
       Object.assign(shared, {

@@ -12,8 +12,8 @@ const profile = (id: string): PlayerProfile => ({ id, nickname: id, characterId:
 test('tension spring is slack at rest, finite under large stretches, and pulls toward partner', () => {
   const rope = new RopeModel();
   const a = { position: { x: 0, y: 0 }, velocity: { x: 0, y: 0 }, mass: 1 };
-  assert.deepEqual(rope.force(a, { ...a, position: { x: 300, y: 0 } }), { x: 0, y: 0 });
-  const stretched = rope.force(a, { ...a, position: { x: 1e9, y: -1e9 } });
+  assert.deepEqual(rope.force(a, { ...a, position: { x: 300, y: 0 } }, R.fixedStep), { x: 0, y: 0 });
+  const stretched = rope.force(a, { ...a, position: { x: 1e9, y: -1e9 } }, R.fixedStep);
   assert.ok(stretched.x > 0 && stretched.y < 0);
   assert.ok(Math.hypot(stretched.x, stretched.y) <= R.rope.maxAcceleration + 1e-6);
 });
@@ -130,7 +130,7 @@ test('a two-player rope remains finite through repeated opposing movement and ju
       simulation.step(R.fixedStep);
       const actors = simulation.snapshot().players;
       assert.ok(actors.every(p => [p.x, p.y, p.vx, p.vy].every(Number.isFinite)));
-      assert.ok(actors.every(p => Math.abs(p.x) < 15000 && p.y > R.challenge.deathY));
+      assert.ok(actors.every(p => Math.abs(p.x) < 15000 && p.y > -4000));
       assert.ok(Math.hypot(actors[0].x - actors[1].x, actors[0].y - actors[1].y) < 5000);
     }
   } finally {

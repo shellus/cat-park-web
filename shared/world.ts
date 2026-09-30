@@ -36,6 +36,8 @@ interface Player {
   lastGrounded: number;
   checkpoint: Point;
   proxy: boolean;
+  /** Challenge: standing still on the ground turns the body kinematic, so no one can shove it. */
+  planted: boolean;
 }
 const S = R.sourceUnitsPerPhysicsUnit;
 const emptyInput = (): InputState => ({ x: 0, y: 0, jump: false, sequence: -1 });
@@ -99,6 +101,11 @@ export function createWorld(
     const v = player.body.linvel();
     return { x: v.x * S, y: v.y * S };
   }
+  const bounds = content.challenge.bounds;
+  /** Falling below the map or leaving it sideways, where no camera can follow, kills. */
+  function outOfBounds(p: Point) {
+    return p.y < bounds.minY - R.challenge.dieMargin || p.x < bounds.minX || p.x > bounds.maxX;
+  }
   function isGrounded(player: Player): boolean {
     const p = player.body.translation();
     // Three foot rays avoid side-wall contacts counting as a floor; exclude the whole own body.
@@ -114,6 +121,31 @@ export function createWorld(
       );
       return !!hit;
     });
+  }
+  const playerBodies = new Set<number>();
+  /** Whether another player stands right beside `player` in `direction`, so walking on would shove it. */
+  function playerAhead(player: Player, direction: number) {
+    const p = player.body.translation(),
+      reach = R.player.halfWidth / S + 0.06;
+    return [-0.4, 0, 0.4].some(dy => {
+      const hit = world.castRay(
+        new RAPIER.Ray({ x: p.x, y: p.y + dy }, { x: direction, y: 0 }),
+        reach,
+        true,
+        undefined,
+        undefined,
+        player.collider,
+        player.body,
+      );
+      const other = hit?.collider.parent();
+      return !!other && playerBodies.has(other.handle);
+    });
+  }
+  function setPlanted(player: Player, planted: boolean) {
+    if (player.planted === planted) return;
+    player.planted = planted;
+    player.body.setBodyType(planted ? RAPIER.RigidBodyType.KinematicVelocityBased : RAPIER.RigidBodyType.Dynamic, true);
+    player.body.setLinvel({ x: 0, y: 0 }, true);
   }
   function fixedStep() {
     tick++;
@@ -155,9 +187,13 @@ export function createWorld(
         )
           player.checkpoint = p;
       }
-      const acceleration = player.grounded ? R.challenge.groundAcceleration : R.challenge.airAcceleration;
+      // Players never shove each other: walking stops at a teammate's side instead of pushing it.
+      const push = won || (player.input.x && playerAhead(player, Math.sign(player.input.x))) ? 0 : player.input.x;
+      const jumping = player.jumpQueuedUntil >= elapsed && !won;
+      setPlanted(player, player.grounded && !push && !jumping);
+      if (player.planted) continue;
       let vy = v.y;
-      if (player.jumpQueuedUntil >= elapsed && !won) {
+      if (jumping) {
         if (player.grounded || elapsed - player.lastGrounded <= R.challenge.coyoteTime) {
           vy = R.challenge.jumpSpeed;
           player.lastGrounded = -Infinity;
@@ -165,14 +201,16 @@ export function createWorld(
         }
         player.jumpQueuedUntil = -Infinity;
       }
-      const target = won ? 0 : player.input.x * R.challenge.speed;
-      player.body.setLinvel(
-        {
-          x: approach(v.x, target, acceleration * R.fixedStep) / S,
-          y: clamp(vy, -R.player.maxSpeed, R.player.maxSpeed) / S,
-        },
-        true,
-      );
+      // HForce accelerates towards MaxHVelocity but never brakes a faster swing. Without input the
+      // feet hold on the ground; in the air momentum is kept.
+      let vx = v.x;
+      if (push) {
+        const cap = Math.abs(push) * R.challenge.maxSpeed,
+          along = vx * Math.sign(push);
+        if (along < cap) vx += Math.sign(push) * Math.min(cap - along, R.challenge.acceleration * R.fixedStep);
+      } else if (player.grounded) vx = 0;
+      else if (player.input.x && vx * player.input.x > 0 && playerAhead(player, Math.sign(vx))) vx = 0;
+      player.body.setLinvel({ x: vx / S, y: clamp(vy, -R.player.maxSpeed, R.player.maxSpeed) / S }, true);
     }
     if (kind === 'challenge') {
       const ordered = [...players.values()];
@@ -182,20 +220,25 @@ export function createWorld(
         const force = rope.force(
           { position: position(a), velocity: velocity(a), mass: R.player.mass },
           { position: position(b), velocity: velocity(b), mass: R.player.mass },
+          R.fixedStep,
         );
+        // A standing end holds with its feet until the rope drags it sideways harder than
+        // FootJointForcePulling; a downward pull only presses it into the ground.
+        if (Math.abs(force.x) > R.rope.footJointForce * R.player.mass) {
+          setPlanted(a, false);
+          setPlanted(b, false);
+        }
         const impulse = { x: (force.x / S) * R.fixedStep, y: (force.y / S) * R.fixedStep };
-        a.body.applyImpulse(impulse, true);
-        b.body.applyImpulse({ x: -impulse.x, y: -impulse.y }, true);
+        if (!a.planted) a.body.applyImpulse(impulse, true);
+        if (!b.planted) b.body.applyImpulse({ x: -impulse.x, y: -impulse.y }, true);
       }
     }
     world.step();
     for (const player of players.values()) {
       if (player.proxy) continue;
       const p = position(player);
-      if (
-        !Number.isFinite(p.x + p.y) ||
-        (kind === 'challenge' && (p.y < R.challenge.deathY || Math.abs(p.x) > 15000))
-      ) {
+      if (!Number.isFinite(p.x + p.y) || (kind === 'challenge' && outOfBounds(p))) {
+        setPlanted(player, false);
         player.body.setTranslation({ x: player.checkpoint.x / S, y: (player.checkpoint.y + 10) / S }, true);
         player.body.setLinvel({ x: 0, y: 0 }, true);
         player.jumpQueuedUntil = -Infinity;
@@ -252,6 +295,7 @@ export function createWorld(
           .setRestitution(0),
         body,
       );
+      playerBodies.add(body.handle);
       players.set(profile.id, {
         profile: { ...profile },
         body,
@@ -263,11 +307,13 @@ export function createWorld(
         lastGrounded: -Infinity,
         checkpoint: p,
         proxy,
+        planted: false,
       });
     },
     removePlayer(id) {
       const p = players.get(id);
       if (p) {
+        playerBodies.delete(p.body.handle);
         world.removeRigidBody(p.body);
         players.delete(id);
         if (keyOwnerId === id) keyOwnerId = null;
@@ -319,6 +365,7 @@ export function createWorld(
       if (!p || p.proxy) return;
       p.body.setTranslation({ x: state.x / S, y: state.y / S }, true);
       p.body.setLinvel({ x: state.vx / S, y: state.vy / S }, true);
+      setPlanted(p, false);
       p.facing = state.facing;
       p.grounded = state.grounded;
       p.lastGrounded = state.grounded ? elapsed : -Infinity;

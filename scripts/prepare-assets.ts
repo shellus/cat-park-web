@@ -5,6 +5,7 @@ import sharp from 'sharp';
 import subsetFont from 'subset-font';
 import { restoreSpriteCanvas, type SpriteGeometry } from './sprite-image.ts';
 import { loadConfig, PROJECT_ROOT } from '../server/config.ts';
+import { GAME_RULES } from '../shared/game-behavior.ts';
 import type {
   GameAtlas,
   GameContent,
@@ -366,6 +367,17 @@ for (const object of map.objects) {
     tint: tint(node?.renderer?.m_Color),
   });
 }
+// The map is MapSize wide and starts half a reference view left of x = 0; vertically
+// it spans the platforms. The camera never shows anything outside these bounds.
+const mapSize = Number(map.parameters?.MapSize);
+if (!Number.isFinite(mapSize) || mapSize <= GAME_RULES.challenge.view.width) throw new Error('关卡缺少有效的 MapSize');
+const platforms = objects.filter(o => o.type === 2);
+const challengeBounds: Bounds = {
+  minX: -GAME_RULES.challenge.view.width / 2,
+  maxX: mapSize - GAME_RULES.challenge.view.width / 2,
+  minY: Math.min(...platforms.map(o => o.y - o.height / 2)),
+  maxY: Math.max(...platforms.map(o => o.y + o.height / 2)),
+};
 const background = (await read('scenes/co_plat_2d.bg.json')).nodes.find((n: Source) => n.sprite);
 const audio: Record<string, string> = {};
 for (const item of assetList)
@@ -418,7 +430,7 @@ const content: GameContent = {
     objects,
     rope: map.rope,
     background: backgroundSprite,
-    bounds: { minX: -1500, maxX: 7500, minY: -1800, maxY: 1300 },
+    bounds: challengeBounds,
     atlases: atlasesFor([...groups.at(-2)![1], backgroundSprite]),
   },
   audio,
